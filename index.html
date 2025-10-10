@@ -1,0 +1,3982 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestore Flotta Navi</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-main: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-popup: #202020;
+            --text-color: #ffffff;
+            --accent-orange: #ff6b00;
+            --accent-orange-light: #ff8533;
+            --accent-orange-dark: #e55a00;
+            --accent-glow: rgba(255, 107, 0, 0.4);
+            --border-color: #333333;
+            --card-hover: rgba(255, 107, 0, 0.15);
+            --glass-bg: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--bg-main) 0%, var(--bg-secondary) 100%);
+            color: var(--text-color);
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .canvas {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+            background: radial-gradient(circle at 25% 25%, rgba(255, 107, 0, 0.03) 0%, transparent 50%),
+                        radial-gradient(circle at 75% 75%, rgba(255, 107, 0, 0.02) 0%, transparent 50%);
+        }
+
+        .canvas:active {
+            cursor: grabbing;
+        }
+
+        .canvas-content {
+            position: absolute;
+            width: 8000px;
+            height: 4500px;
+            background-image: 
+                radial-gradient(circle, rgba(235, 113, 0, 0.596) 2px, transparent 2px);
+            background-size: 50px 50px;
+            background-position: 0 0;
+            transition: transform 0.1s ease-out;
+            transform-origin: 0 0;
+            border: 4px solid rgba(255, 255, 255, 0.8);
+            box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.3),
+                        0 0 20px rgba(255, 255, 255, 0.2);
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        
+        .canvas-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.1;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .floating-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-orange-dark));
+            border: 2px solid var(--accent-orange-light);
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 
+                0 8px 32px var(--accent-glow),
+                0 0 0 0 var(--accent-glow),
+                inset 0 1px 0 rgba(255,255,255,0.2);
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .floating-btn:hover {
+            transform: scale(1.15) rotate(90deg);
+            box-shadow: 
+                0 12px 40px var(--accent-glow),
+                0 0 0 8px rgba(255, 107, 0, 0.1),
+                inset 0 1px 0 rgba(255,255,255,0.3);
+        }
+
+        .zoom-controls {
+            position: fixed;
+            top: 30px;
+            right: 110px;  /* a sinistra del reset button */
+            display: flex;
+            flex-direction: row;
+            gap: 15px;
+            z-index: 1000;
+            align-items: center;
+        }
+
+        .zoom-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-orange-dark));
+            border: 2px solid var(--accent-orange-light);
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 
+                0 8px 32px var(--accent-glow),
+                inset 0 1px 0 rgba(255,255,255,0.2);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .zoom-btn {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .zoom-btn:not(:hover) {
+            animation: float 3s ease-in-out infinite, pulse 2s ease-in-out infinite;
+        }
+
+        .zoom-btn:hover {
+            transform: scale(1.15);
+            box-shadow: 
+                0 12px 40px var(--accent-glow),
+                0 0 0 8px rgba(255, 107, 0, 0.1),
+                inset 0 1px 0 rgba(255,255,255,0.3);
+        }
+
+        .info-btn-active {
+            color: #4CAF50;
+            box-shadow: 0 0 15px rgba(76, 175, 80, 0.6);
+            transform: scale(1.1);
+        }
+
+        .reset-btn {
+            top: 30px;
+            right: 30px;
+            bottom: auto;
+            width: 70px;  /* cambiato da 60px a 70px */
+            height: 70px; /* cambiato da 60px a 70px */
+            font-size: 24px; /* cambiato da 20px a 24px */
+        }
+
+        .reset-btn:hover {
+            transform: scale(1.15) rotate(-90deg); /* cambiato da 1.1 a 1.15 */
+        }
+
+        .search-crew-btn {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-orange-dark));
+            border: 2px solid var(--accent-orange-light);
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 
+                0 8px 32px var(--accent-glow),
+                inset 0 1px 0 rgba(255,255,255,0.2);
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .search-crew-btn:hover {
+            transform: translateX(-50%) scale(1.15);
+            box-shadow: 
+                0 12px 40px var(--accent-glow),
+                0 0 0 8px rgba(255, 107, 0, 0.1),
+                inset 0 1px 0 rgba(255,255,255,0.3);
+        }
+
+        .crew-search-panel {
+            position: fixed;
+            top: 120px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: linear-gradient(145deg, #2a2a2a, #1e1e1e);
+            border: 2px solid var(--accent-orange);
+            border-radius: 20px;
+            padding: 25px;
+            min-width: 400px;
+            max-width: 500px;
+            box-shadow: 
+                0 25px 80px rgba(0,0,0,0.8),
+                0 0 0 1px rgba(255, 107, 0, 0.3);
+            z-index: 10001;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .crew-search-panel.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .crew-search-panel h3 {
+            color: var(--text-color);
+            margin-bottom: 20px;
+            font-size: 20px;
+            font-weight: 600;
+            text-align: center;
+            background: linear-gradient(135deg, #ffffff, var(--accent-orange-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .crew-search-panel input {
+            width: 100%;
+            background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(26,26,26,0.6));
+            border: 2px solid rgba(255, 107, 0, 0.4);
+            color: var(--text-color);
+            padding: 14px 18px;
+            border-radius: 12px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .crew-search-panel input:focus {
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+            outline: none;
+        }
+
+        .crew-search-results {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .crew-search-result {
+            background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+            border: 1px solid rgba(255,140,0,0.2);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+
+        .crew-search-result:hover {
+            border-color: var(--accent-orange);
+            background: linear-gradient(135deg, rgba(255,107,0,0.1), rgba(255,107,0,0.05));
+        }
+
+        .crew-search-result-ship {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--accent-orange-light);
+            margin-bottom: 5px;
+        }
+
+        .crew-search-result-role {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .crew-search-no-results {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            padding: 30px;
+            font-size: 16px;
+        }
+
+        /* Loading Screen */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--bg-main), var(--bg-secondary));
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 1;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .loading-screen.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-video {
+            width: 1200px;
+            height: auto;
+            margin-bottom: 30px;
+            border-radius: 16px;
+        }
+
+        .loading-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 40px;
+            text-align: center;
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-orange-light), #ffaa44);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px var(--accent-glow);
+        }
+
+        .loading-bar-container {
+            width: 500px;
+            height: 60px;
+            background: transparent;
+            border-radius: 0;
+            overflow: visible;
+            position: relative;
+            box-shadow: none;
+            border: none;
+        }
+
+        .loading-bar {
+            height: 100%;
+            width: 100%;
+            background: transparent;
+            border-radius: 0;
+            animation: none;
+            position: relative;
+            box-shadow: none;
+        }
+
+        .loading-bar::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            width: 200px;
+            height: 200px;
+            background-image: var(--loading-ship-image, url('assets/icons/890j-loading.png'));
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            animation: moveIcon 5s ease-out forwards;
+            filter: drop-shadow(0 0 20px var(--accent-orange));
+        }
+
+        .loading-bar::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            width: 0%;
+            height: 3px;
+            background: linear-gradient(90deg, 
+                transparent 0%,
+                var(--accent-orange-light) 20%,
+                var(--accent-orange) 100%);
+            animation: drawTrail 5s ease-out forwards;
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        @keyframes moveIcon {
+            from { left: 0; }
+            to { left: calc(100% - 60px); }
+        }
+
+        @keyframes drawTrail {
+            from { width: 0%; }
+            to { width: calc(100% - 60px); }
+        }
+
+        /* Modal Overlay - Tablet Style */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, 
+                rgba(0, 0, 0, 0.95) 0%, 
+                rgba(26, 26, 26, 0.9) 50%, 
+                rgba(0, 0, 0, 0.95) 100%);
+            backdrop-filter: blur(20px);
+            z-index: 9998;
+            display: flex;              /* sempre flex */
+            align-items: center;
+            justify-content: center;
+            opacity: 0;                 /* parte trasparente */
+            pointer-events: none;       /* disattivo click quando invisibile */
+            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 20px;
+        }
+
+        .modal-overlay.visible {
+            opacity: 1;                 /* diventa visibile */
+            pointer-events: auto;       /* riattivo click */
+        }
+
+        .modal-overlay.closing {
+            opacity: 0;                 /* dissolvenza in uscita */
+            pointer-events: none;
+        }
+
+        /* Tablet Container */
+        .tablet-container {
+            position: relative;
+            max-width: 1400px;
+            width: 90vw;
+            height: 85vh;
+            background: linear-gradient(135deg, 
+                rgba(15, 15, 15, 0.95) 0%, 
+                rgba(30, 30, 30, 0.9) 50%, 
+                rgba(15, 15, 15, 0.95) 100%);
+            border-radius: 40px;
+            padding: 8px;
+            box-shadow: 
+                0 0 0 2px rgba(255, 107, 0, 0.3),
+                0 20px 80px rgba(0, 0, 0, 0.8),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+            transform: scale(0.9) rotateX(5deg);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+
+        .modal-overlay.visible .tablet-container {
+            transform: scale(1) rotateX(0deg);
+        }
+
+        .tablet-logo {
+            width: 40px;      /* regola la dimensione */
+            height: 40px;     /* se vuoi quadrata */
+            object-fit: contain;
+        }
+
+        /* Tablet Screen */
+        .tablet-screen {
+            width: 100%;
+            height: 100%;
+            background: url('assets/icons/solaris-banner.png') center top/cover no-repeat,
+                        linear-gradient(135deg, 
+                            rgba(0, 0, 0, 0.9) 0%, 
+                            rgba(20, 20, 20, 0.95) 50%, 
+                            rgba(0, 0, 0, 0.9) 100%);
+            background-position: center top;  /* aggiunge questa riga */
+            border-radius: 32px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 
+                inset 0 2px 10px rgba(0, 0, 0, 0.8),
+                inset 0 0 0 1px rgba(255, 107, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Tablet Header */
+        .tablet-header {
+            position: relative;
+            background: linear-gradient(135deg, 
+                rgba(255, 107, 0, 0.2) 0%, 
+                rgba(255, 107, 0, 0.1) 50%, 
+                rgba(255, 107, 0, 0.2) 100%);
+            border-bottom: 1px solid rgba(255, 107, 0, 0.3);
+            padding: 25px 35px;
+            backdrop-filter: blur(20px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .tablet-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                var(--accent-orange) 20%, 
+                var(--accent-orange-light) 50%, 
+                var(--accent-orange) 80%, 
+                transparent 100%);
+            animation: headerPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes headerPulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .tablet-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .tablet-title i {
+            font-size: 32px;
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-orange-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 10px var(--accent-glow));
+        }
+
+        .tablet-title h2 {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff, var(--accent-orange-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 0.5px;
+        }
+
+        .tablet-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .tablet-btn {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text-color);
+            padding: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .tablet-btn:hover {
+            background: rgba(255, 107, 0, 0.2);
+            border-color: var(--accent-orange);
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(255, 107, 0, 0.3);
+        }
+
+        .close-tablet {
+            background: linear-gradient(135deg, rgba(255, 68, 68, 0.2), rgba(255, 68, 68, 0.1));
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            color: #ff6b6b;
+        }
+
+        .close-tablet:hover {
+            background: linear-gradient(135deg, rgba(255, 68, 68, 0.3), rgba(255, 68, 68, 0.2));
+            transform: scale(1.1) rotate(90deg);
+        }
+
+        /* tasti opzionali discord e musica */
+        .tablet-btn.discord-active {
+            color: #7289da;
+            border-color: #7289da;
+            box-shadow: 0 0 15px rgba(114, 137, 218, 0.6);
+        }
+
+        .tablet-btn.music-active {
+            color: var(--accent-orange);
+            box-shadow: 0 0 15px var(--accent-glow);
+            transform: scale(1.1);
+        }
+
+        /* Search Section */
+        .tablet-search {
+            padding: 20px 25px;
+            background: transparent;
+            border-bottom: none;
+        }
+
+        .search-wrapper {
+            position: relative;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .search-input {
+            width: 100%;
+            background: var(--glass-bg);
+            border: 2px solid var(--glass-border);
+            color: var(--text-color);
+            padding: 18px 60px 18px 24px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 300;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(15px);
+            box-shadow: 
+                inset 0 2px 10px rgba(0, 0, 0, 0.2),
+                0 0 0 0 var(--accent-glow);
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-orange);
+            background: rgba(255, 107, 0, 0.05);
+            box-shadow: 
+                inset 0 2px 10px rgba(0, 0, 0, 0.2),
+                0 0 0 4px rgba(255, 107, 0, 0.2),
+                0 0 30px rgba(255, 107, 0, 0.3);
+            outline: none;
+            transform: scale(1.02);
+        }
+
+        .search-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--accent-orange);
+            font-size: 20px;
+            pointer-events: none;
+        }
+
+        /* Ships Grid Container */
+        .tablet-content {
+            flex: 1;
+            padding: 40px 35px;
+            overflow-y: scroll;
+            min-height: 0;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.1) 0%, rgba(20, 20, 20, 0.1) 100%);
+            position: relative;
+            -webkit-mask-image: linear-gradient(to bottom, 
+                transparent 0%, 
+                black 5%, 
+                black 95%, 
+                transparent 100%);
+            mask-image: linear-gradient(to bottom, 
+                transparent 0%, 
+                black 5%, 
+                black 95%, 
+                transparent 100%);
+        }
+
+        .tablet-content::-webkit-scrollbar {
+            width: 12px;
+        }
+
+        .tablet-content::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+        }
+
+        .tablet-content::-webkit-scrollbar-thumb {
+            background: var(--accent-orange);
+            border-radius: 6px;
+        }
+
+        /* Modern Grid Layout */
+        .ships-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .ship-card-modern {
+            background: linear-gradient(135deg, 
+                var(--glass-bg) 0%, 
+                rgba(255, 107, 0, 0.08) 50%, 
+                var(--glass-bg) 100%);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 25px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(15px);
+            position: relative;
+            overflow: hidden;
+            aspect-ratio: 1.2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .ship-card-modern::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(255, 107, 0, 0.2), 
+                transparent);
+            transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1;
+        }
+
+        .ship-card-modern:hover::before {
+            left: 100%;
+        }
+
+        .ship-card-modern::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 24px;
+            background: linear-gradient(135deg, 
+                rgba(255, 107, 0, 0.1) 0%, 
+                transparent 50%, 
+                rgba(255, 107, 0, 0.1) 100%);
+            opacity: 0;
+            transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 0;
+        }
+
+        .ship-card-modern:hover {
+            border-color: var(--accent-orange);
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 
+                0 20px 60px rgba(0, 0, 0, 0.5),
+                0 0 0 2px rgba(255, 107, 0, 0.3),
+                0 0 40px rgba(255, 107, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .ship-card-modern:hover::after {
+            opacity: 1;
+        }
+
+        .ship-image-modern {
+            width: 110%;
+            height: auto;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 16px;
+            background: linear-gradient(135deg, 
+                rgba(255, 107, 0, 0.05), 
+                rgba(255, 107, 0, 0.02));
+            padding: 15px;
+            margin-bottom: 20px;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 2;
+            box-shadow: 0 4px 5px rgb(0, 0, 0);
+        }
+
+        .ship-card-modern:hover .ship-image-modern {
+            transform: scale(1.05) rotateY(5deg);
+        }
+
+        .ship-name-modern {
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            background: linear-gradient(135deg, 
+                #ffffff 0%, 
+                var(--accent-orange-light) 50%, 
+                #ffffff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 1px;
+            position: relative;
+            z-index: 2;
+            text-shadow: 0 0 20px rgba(255, 107, 0, 0.5);
+        }
+
+        .ship-placeholder-modern {
+            width: 80%;
+            height: 60%;
+            background: linear-gradient(135deg, 
+                rgba(255, 107, 0, 0.1), 
+                rgba(255, 107, 0, 0.05));
+            border: 2px dashed rgba(255, 107, 0, 0.5);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            text-align: center;
+            color: rgba(255, 107, 0, 0.8);
+            font-weight: 500;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 2;
+            display: none;
+        }
+
+        /* Category Cards */
+        .category-card {
+            background: linear-gradient(135deg, 
+                var(--glass-bg) 0%, 
+                rgba(255, 107, 0, 0.08) 50%, 
+                var(--glass-bg) 100%);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(15px);
+            position: relative;
+            overflow: hidden;
+            aspect-ratio: 250/125;
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .category-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(255, 107, 0, 0.2), 
+                transparent);
+            transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1;
+        }
+
+        .category-card:hover::before {
+            left: 100%;
+        }
+
+        .category-card:hover {
+            border-color: var(--accent-orange);
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 
+                0 20px 60px rgba(0, 0, 0, 0.5),
+                0 0 0 2px rgba(255, 107, 0, 0.3),
+                0 0 40px rgba(255, 107, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .category-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 20px;
+            position: relative;
+            z-index: 2;
+            pointer-events: none; /* previene interferenze con il click sulla card */
+        }
+
+        /* Casella Testo */
+        .text-box {
+            position: absolute;
+            background: linear-gradient(145deg, #2a2a2a, #1e1e1e);
+            border: 2px solid var(--accent-orange);
+            border-radius: 12px;
+            padding: 15px 20px;
+            min-width: 500px;  /* aumentato da 300px */
+            max-width: 1200px;  /* aumentato da 800px */
+            box-shadow: 
+                0 8px 32px rgba(0,0,0,0.3),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+            cursor: move;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .text-box.locked {
+            cursor: default;
+            border-color: #ff4444;
+        }
+
+        .lock-text-box {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            border: 1px solid rgba(255,255,255,0.3);
+            color: rgba(255,255,255,0.5);
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            flex-shrink: 0;
+        }
+
+        .lock-text-box:hover {
+            transform: translateY(-1px);
+            background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.1));
+        }
+
+        .lock-text-box.locked {
+            background: linear-gradient(135deg, #ff4444, #cc0000);
+            border-color: #ff6666;
+            color: white;
+            box-shadow: 0 2px 8px rgba(255,68,68,0.3);
+        }
+
+        .lock-text-box.locked:hover {
+            box-shadow: 0 4px 12px rgba(255,68,68,0.4);
+        }
+
+        .text-box input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-color);
+            font-size: 24px;
+            font-weight: 600;
+            outline: none;
+            padding: 5px;
+        }
+
+        .text-box input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+            font-style: italic;
+        }
+
+        .delete-text-box {
+            background: linear-gradient(135deg, #ff4444, #cc0000);
+            border: none;
+            color: white;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(255,68,68,0.3);
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .delete-text-box:hover {
+            transform: translateY(-1px) scale(1.05);
+            box-shadow: 0 4px 12px rgba(255,68,68,0.4);
+        }
+
+        /* casella evento */
+        .event-card {
+            position: absolute;
+            background: linear-gradient(145deg, #2a2a2a, #1e1e1e);
+            border: 1px solid #444;
+            border-radius: 12px;
+            padding: 20px;
+            width: 400px;
+            box-shadow: 
+                0 8px 32px rgba(0,0,0,0.3),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+            cursor: move;
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+
+        .event-card.locked {
+            cursor: default;
+        }
+
+        .event-card-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .event-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, rgba(255,140,0,0.1), rgba(255,140,0,0.05));
+            border: 1px solid rgba(255,140,0,0.3);
+            cursor: pointer;
+        }
+
+        .event-image-placeholder {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, rgba(255,140,0,0.1), rgba(255,140,0,0.05));
+            border: 2px dashed rgba(255,140,0,0.5);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            text-align: center;
+            color: rgba(255,140,0,0.8);
+            font-weight: 500;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .event-image-placeholder:hover {
+            background: linear-gradient(135deg, rgba(255,140,0,0.15), rgba(255,140,0,0.1));
+            border-color: var(--accent-orange);
+        }
+
+        .event-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .event-title-input {
+            flex: 1;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,140,0,0.3);
+            color: var(--text-color);
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 18px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .event-title-input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+            font-style: italic;
+        }
+
+        .event-title-input:focus {
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 0 2px rgba(255,140,0,0.2);
+            outline: none;
+        }
+
+        .event-description {
+            width: 100%;
+            min-height: 100px;
+            max-height: none;  /* rimuovi il limite massimo */
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,140,0,0.3);
+            color: var(--text-color);
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            resize: none;  /* disabilita il resize manuale */
+            overflow: hidden;  /* nascondi lo scroll */
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .event-description::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+            font-style: italic;
+        }
+
+        .event-description:focus {
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 0 2px rgba(255,140,0,0.2);
+            outline: none;
+        }
+
+        .event-controls {
+            display: flex;
+            gap: 8px;
+            margin-left: 10px;
+        }
+
+        .lock-event {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            border: 1px solid rgba(255,255,255,0.3);
+            color: rgba(255,255,255,0.5);
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .lock-event:hover {
+            transform: translateY(-1px);
+            background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.1));
+        }
+
+        .lock-event.locked {
+            background: linear-gradient(135deg, #ff4444, #cc0000);
+            border-color: #ff6666;
+            color: white;
+            box-shadow: 0 2px 8px rgba(255,68,68,0.3);
+        }
+
+        .lock-event.locked:hover {
+            box-shadow: 0 4px 12px rgba(255,68,68,0.4);
+        }
+
+        .delete-event {
+            background: linear-gradient(135deg, #ff4444, #cc0000);
+            border: none;
+            color: white;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(255,68,68,0.3);
+            transition: all 0.2s;
+        }
+
+        .delete-event:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255,68,68,0.4);
+        }
+
+        /* Tablet Footer */
+        .tablet-footer {
+            padding: 30px 35px;
+            background: linear-gradient(135deg, 
+                rgba(255, 107, 0, 0.1) 0%, 
+                rgba(0, 0, 0, 0.3) 50%, 
+                rgba(255, 107, 0, 0.1) 100%);
+            border-top: 1px solid rgba(255, 107, 0, 0.2);
+            display: none;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .tablet-action-btn {
+            background: linear-gradient(135deg, 
+                var(--glass-bg) 0%, 
+                rgba(255, 107, 0, 0.1) 50%, 
+                var(--glass-bg) 100%);
+            border: 1px solid var(--accent-orange);
+            color: var(--text-color);
+            padding: 16px 28px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 160px;
+            justify-content: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tablet-action-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(255, 107, 0, 0.3), 
+                transparent);
+            transition: left 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .tablet-action-btn:hover::before {
+            left: 100%;
+        }
+
+        .tablet-action-btn:hover {
+            background: linear-gradient(135deg, 
+                rgba(255, 107, 0, 0.2) 0%, 
+                rgba(255, 107, 0, 0.15) 50%, 
+                rgba(255, 107, 0, 0.2) 100%);
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 
+                0 10px 30px rgba(255, 107, 0, 0.3),
+                0 0 0 2px rgba(255, 107, 0, 0.2);
+        }
+
+        .tablet-action-btn.secondary {
+            border-color: rgba(255, 255, 255, 0.3);
+            background: linear-gradient(135deg, 
+                rgba(255, 255, 255, 0.1) 0%, 
+                rgba(255, 255, 255, 0.05) 50%, 
+                rgba(255, 255, 255, 0.1) 100%);
+        }
+
+        .tablet-action-btn.secondary:hover {
+            background: linear-gradient(135deg, 
+                rgba(255, 255, 255, 0.15) 0%, 
+                rgba(255, 255, 255, 0.1) 50%, 
+                rgba(255, 255, 255, 0.15) 100%);
+            box-shadow: 
+                0 10px 30px rgba(255, 255, 255, 0.1),
+                0 0 0 2px rgba(255, 255, 255, 0.2);
+        }
+
+        .no-ships-message {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 24px;
+            font-weight: 300;
+            margin-top: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .no-ships-message i {
+            font-size: 64px;
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-orange-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 20px var(--accent-glow));
+        }
+
+        /* Animazioni apertura/chiusura tablet */
+        @keyframes tabletSlideUp {
+            from {
+                transform: translateY(100%) scale(0.9);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes tabletSlideDown {
+            from {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+            to {
+                transform: translateY(100%) scale(0.9);
+                opacity: 0;
+            }
+        }
+
+        /* Stato di apertura */
+        .modal-overlay.visible .tablet-container {
+            animation: tabletSlideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        /* Stato di chiusura */
+        .modal-overlay.closing .tablet-container {
+            animation: tabletSlideDown 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        /* Ship Cards (Canvas) */
+        .ship-card {
+            position: absolute;
+            background: linear-gradient(145deg, #2a2a2a, #1e1e1e);
+            border: 1px solid #444;
+            border-radius: 12px;
+            padding: 20px;
+            width: 400px;
+            box-shadow: 
+                0 8px 32px rgba(0,0,0,0.3),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+            cursor: move;
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+
+        .ship-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .ship-image {
+            width: 100%;
+            height: auto;
+            object-fit: contain;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, rgba(255,140,0,0.1), rgba(255,140,0,0.05));
+            border: 1px solid rgba(255,140,0,0.3);
+        }
+
+        .ship-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .ship-title {
+            font-size: 20px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #fff, #ccc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .delete-ship {
+            background: linear-gradient(135deg, #ff4444, #cc0000);
+            border: none;
+            color: white;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(255,68,68,0.3);
+            transition: all 0.2s;
+        }
+
+        .delete-ship:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255,68,68,0.4);
+        }
+
+        .lock-ship {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            border: 1px solid rgba(255,255,255,0.3);
+            color: rgba(255,255,255,0.5);
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            margin-right: 8px;
+        }
+
+        .lock-ship:hover {
+            transform: translateY(-1px);
+            background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.1));
+        }
+
+        .lock-ship.locked {
+            background: linear-gradient(135deg, #ff4444, #cc0000);
+            border-color: #ff6666;
+            color: white;
+            box-shadow: 0 2px 8px rgba(255,68,68,0.3);
+        }
+
+        .lock-ship.locked:hover {
+            box-shadow: 0 4px 12px rgba(255,68,68,0.4);
+        }
+
+        .crew-section {
+            border-top: 1px solid rgba(255,140,0,0.3);
+            padding-top: 15px;
+        }
+
+        .crew-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .crew-header h4 {
+            font-size: 16px;
+            background: linear-gradient(135deg, var(--accent-orange), #ffb347);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .crew-member {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 10px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+            border: 1px solid rgba(255,140,0,0.2);
+            border-radius: 8px;
+            backdrop-filter: blur(5px);
+            width: 100%;
+            box-sizing: border-box;
+            gap: 8px;
+        }
+
+        .member-name {
+            flex: 1;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,140,0,0.3);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.2s;
+            min-width: 120px;
+        }
+
+        .member-name::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+            font-style: italic;
+        }
+
+        .member-name:focus {
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 0 2px rgba(255,140,0,0.2);
+            outline: none;
+        }
+
+        .role-select {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,140,0,0.3);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            width: 130px;
+            transition: all 0.2s;
+        }
+
+        .role-select:focus {
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 0 2px rgba(255,140,0,0.2);
+            outline: none;
+        }
+
+        .delete-member {
+            background: linear-gradient(135deg, #ff4444, #cc0000);
+            border: none;
+            color: white;
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            min-width: 20px;
+        }
+
+        .delete-member:hover {
+            transform: scale(1.05);
+        }
+
+        .add-member {
+            background: linear-gradient(135deg, var(--accent-orange), #ffb347);
+            border: none;
+            color: #1a1a1a;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(255,140,0,0.3);
+            transition: all 0.2s;
+        }
+
+        .add-member:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255,140,0,0.4);
+        }
+
+        .placeholder-image {
+            width: 100%;
+            height: 80px;
+            background: linear-gradient(135deg, rgba(255,140,0,0.1), rgba(255,140,0,0.05));
+            border: 1px solid rgba(255,140,0,0.3);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            text-align: center;
+            color: rgba(255,140,0,0.8);
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* Input Dialog */
+        .input-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(145deg, #2a2a2a, #1e1e1e);
+            border: 2px solid var(--accent-orange);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 
+                0 25px 80px rgba(0,0,0,0.8),
+                0 0 0 1px rgba(255, 107, 0, 0.3);
+            z-index: 10001;
+            min-width: 350px;
+            max-width: 500px;
+        }
+
+        .input-dialog h3 {
+            color: var(--text-color);
+            margin-bottom: 20px;
+            font-size: 20px;
+            font-weight: 600;
+            text-align: center;
+            background: linear-gradient(135deg, #ffffff, var(--accent-orange-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .input-dialog input {
+            width: 100%;
+            background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(26,26,26,0.6));
+            border: 2px solid rgba(255, 107, 0, 0.4);
+            color: var(--text-color);
+            padding: 14px 18px;
+            border-radius: 12px;
+            font-size: 16px;
+            margin-bottom: 25px;
+            box-sizing: border-box;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .input-dialog input:focus {
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+            outline: none;
+            transform: translateY(-2px);
+        }
+
+        .input-dialog-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+        }
+
+        .input-dialog button {
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-orange-light));
+            border: none;
+            color: #ffffff;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .input-dialog button.cancel {
+            background: linear-gradient(135deg, #666, #555);
+            color: var(--text-color);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .input-dialog button:hover {
+            transform: translateY(-2px) scale(1.05);
+        }
+
+        .input-dialog button.cancel:hover {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1600px) {
+            .ships-grid {
+                grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+                gap: 20px;
+            }
+        }
+
+        @media (max-width: 1400px) {
+            .ships-grid {
+                grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+                gap: 18px;
+            }
+            
+            .tablet-container {
+                width: 92vw;
+                height: 88vh;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .tablet-container {
+                width: 95vw;
+                height: 90vh;
+                border-radius: 30px;
+                padding: 6px;
+            }
+            
+            .tablet-screen {
+                border-radius: 24px;
+            }
+            
+            .ships-grid {
+                grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+                gap: 16px;
+            }
+            
+            .tablet-header, .tablet-search, .tablet-footer {
+                padding: 25px 30px;
+            }
+            
+            .tablet-content {
+                padding: 30px 30px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .tablet-container {
+                width: 100vw;
+                height: 100vh;
+                border-radius: 0;
+                padding: 0;
+            }
+            
+            .tablet-screen {
+                border-radius: 0;
+            }
+            
+            .ships-grid {
+                grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+                gap: 14px;
+            }
+            
+            .tablet-header {
+                padding: 20px 25px;
+            }
+            
+            .tablet-title h2 {
+                font-size: 24px;
+            }
+            
+            .tablet-search, .tablet-footer {
+                padding: 20px 25px;
+            }
+            
+            .tablet-content {
+                padding: 25px;
+            }
+            
+            .tablet-footer {
+                flex-direction: column;
+            }
+            
+            .tablet-action-btn {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .floating-btn {
+                width: 60px;
+                height: 60px;
+                bottom: 20px;
+                right: 20px;
+            }
+            
+            .reset-btn {
+                width: 50px;
+                height: 50px;
+                top: 20px;
+                right: 20px;
+            }
+        }
+
+        /* Advanced Animations */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 8px 32px var(--accent-glow); }
+            50% { box-shadow: 0 8px 32px var(--accent-glow), 0 0 0 10px rgba(255, 107, 0, 0.1); }
+            100% { box-shadow: 0 8px 32px var(--accent-glow); }
+        }
+
+        @keyframes tabletGlow {
+            0%, 100% { 
+                box-shadow: 
+                    0 0 0 2px rgba(255, 107, 0, 0.3),
+                    0 20px 80px rgba(0, 0, 0, 0.8),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+            }
+            50% { 
+                box-shadow: 
+                    0 0 0 2px rgba(255, 107, 0, 0.5),
+                    0 20px 80px rgba(0, 0, 0, 0.8),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+                    0 0 60px rgba(255, 107, 0, 0.2);
+            }
+        }
+
+        .floating-btn {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .floating-btn:not(:hover) {
+            animation: float 3s ease-in-out infinite, pulse 2s ease-in-out infinite;
+        }
+
+        .tablet-container {
+            animation: tabletGlow 4s ease-in-out infinite;
+        }
+
+        /* Tablet Edge Lighting */
+        .tablet-container::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, 
+                rgba(255, 107, 0, 0.6) 0%, 
+                rgba(255, 107, 0, 0.2) 25%, 
+                rgba(255, 107, 0, 0.1) 50%, 
+                rgba(255, 107, 0, 0.2) 75%, 
+                rgba(255, 107, 0, 0.6) 100%);
+            border-radius: 42px;
+            z-index: -1;
+            animation: none;
+        }
+
+        @keyframes rotateBorder {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes highlightPulse {
+            0%, 100% { 
+                box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                transform: scale(1);
+            }
+            50% { 
+                box-shadow: 0 0 0 4px var(--accent-orange), 0 0 40px var(--accent-glow);
+                transform: scale(1.05);
+            }
+        }
+
+        /* ===== RESPONSIVE DESIGN ===== */
+        /* Desktop Large (>1600px) - già ottimizzato */
+        /* Desktop Standard (1200px - 1600px) */
+        @media (max-width: 1600px) {
+            .ships-grid {
+                grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+                gap: 20px;
+            }
+            
+            .tablet-container {
+                width: 92vw;
+                height: 88vh;
+            }
+        }
+
+        /* Laptop/Tablet Landscape (768px - 1200px) */
+        @media (max-width: 1200px) {
+            .tablet-container {
+                width: 95vw;
+                height: 90vh;
+                border-radius: 30px;
+                padding: 6px;
+            }
+            
+            .tablet-screen {
+                border-radius: 24px;
+            }
+            
+            .ships-grid {
+                grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+                gap: 16px;
+            }
+            
+            .tablet-header,
+            .tablet-search,
+            .tablet-content {
+                padding: 20px 25px;
+            }
+            
+            .tablet-title h2 {
+                font-size: 24px;
+            }
+            
+            .ship-card {
+                width: 350px;
+                padding: 18px;
+            }
+            
+            .text-box {
+                min-width: 400px;
+                max-width: 900px;
+            }
+        }
+
+        /* Tablet Portrait (481px - 768px) */
+        @media (max-width: 768px) {
+            body {
+                font-size: 14px;
+            }
+            
+            /* Tablet modal full screen su mobile */
+            .tablet-container {
+                width: 100vw;
+                height: 100vh;
+                border-radius: 0;
+                padding: 0;
+                box-shadow: none;
+            }
+            
+            .tablet-screen {
+                border-radius: 0;
+            }
+            
+            /* Header compatto */
+            .tablet-header {
+                padding: 15px 20px;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .tablet-title {
+                flex: 1 1 100%;
+                justify-content: center;
+                margin-bottom: 10px;
+            }
+            
+            .tablet-title h2 {
+                font-size: 20px;
+            }
+            
+            .tablet-logo {
+                width: 32px;
+                height: 32px;
+            }
+            
+            .tablet-controls {
+                flex: 1 1 100%;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+            
+            .tablet-btn {
+                width: 42px;
+                height: 42px;
+                font-size: 16px;
+                padding: 10px;
+            }
+            
+            /* Ricerca */
+            .tablet-search {
+                padding: 15px 20px;
+            }
+            
+            .search-input {
+                padding: 14px 50px 14px 18px;
+                font-size: 15px;
+            }
+            
+            /* Grid navi */
+            .ships-grid {
+                grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+                gap: 12px;
+            }
+            
+            .tablet-content {
+                padding: 20px;
+            }
+            
+            .ship-card-modern {
+                padding: 18px;
+                border-radius: 20px;
+            }
+            
+            .ship-name-modern {
+                font-size: 15px;
+            }
+            
+            /* Canvas controls */
+            .floating-btn {
+                width: 56px;
+                height: 56px;
+                bottom: 20px;
+                right: 20px;
+                font-size: 20px;
+            }
+            
+            .reset-btn {
+                width: 56px;
+                height: 56px;
+                top: 20px;
+                right: 20px;
+                font-size: 20px;
+            }
+            
+            .zoom-controls {
+                top: 20px;
+                right: 90px;
+                gap: 10px;
+            }
+            
+            .zoom-btn {
+                width: 56px;
+                height: 56px;
+                font-size: 20px;
+            }
+            
+            .search-crew-btn {
+                width: 56px;
+                height: 56px;
+                font-size: 20px;
+            }
+            
+            /* Ship cards nel canvas */
+            .ship-card {
+                width: 320px;
+                padding: 15px;
+            }
+            
+            .ship-title {
+                font-size: 18px;
+            }
+            
+            .crew-member {
+                flex-wrap: wrap;
+            }
+            
+            .member-name {
+                flex: 1 1 100%;
+                margin-bottom: 8px;
+                min-width: auto;
+            }
+            
+            .role-select {
+                flex: 1 1 auto;
+                width: auto;
+            }
+            
+            /* Text boxes e event cards */
+            .text-box {
+                min-width: 300px;
+                max-width: 90vw;
+                padding: 12px 15px;
+            }
+            
+            .text-box input {
+                font-size: 20px;
+            }
+            
+            .event-card {
+                width: 320px;
+                padding: 15px;
+            }
+            
+            /* Pannelli */
+            .crew-search-panel {
+                min-width: 300px;
+                max-width: 90vw;
+                padding: 20px;
+            }
+            
+            .input-dialog {
+                min-width: 280px;
+                max-width: 90vw;
+                padding: 25px;
+            }
+            
+            /* Loading screen */
+            .loading-video {
+                width: 90vw;
+                max-width: 600px;
+            }
+            
+            .loading-title {
+                font-size: 24px;
+            }
+            
+            .loading-bar-container {
+                width: 80vw;
+                max-width: 400px;
+            }
+        }
+
+        /* Mobile (320px - 480px) */
+        @media (max-width: 480px) {
+            /* Grid a singola colonna su mobile piccoli */
+            .ships-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .tablet-header {
+                padding: 12px 15px;
+            }
+            
+            .tablet-title h2 {
+                font-size: 18px;
+            }
+            
+            .tablet-controls {
+                gap: 6px;
+            }
+            
+            .tablet-btn {
+                width: 38px;
+                height: 38px;
+                font-size: 14px;
+            }
+            
+            .tablet-content {
+                padding: 15px;
+            }
+            
+            .ship-card {
+                width: 280px;
+            }
+            
+            .event-card {
+                width: 280px;
+            }
+            
+            .text-box {
+                min-width: 260px;
+            }
+            
+            .text-box input {
+                font-size: 18px;
+            }
+            
+            /* Controlli canvas più piccoli */
+            .floating-btn,
+            .reset-btn,
+            .zoom-btn,
+            .search-crew-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 18px;
+            }
+            
+            .zoom-controls {
+                right: 70px;
+                gap: 8px;
+            }
+            
+            .loading-bar-container {
+                height: 50px;
+            }
+            
+            .loading-bar::before {
+                width: 150px;
+                height: 150px;
+            }
+        }
+
+        /* Landscape orientation adjustments */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .tablet-header {
+                padding: 10px 15px;
+            }
+            
+            .tablet-title {
+                flex-direction: row;
+                margin-bottom: 0;
+            }
+            
+            .tablet-search {
+                padding: 10px 15px;
+            }
+            
+            .tablet-content {
+                padding: 15px;
+            }
+            
+            .ship-card-modern {
+                aspect-ratio: 1.5;
+            }
+        }
+
+        /* Touch-friendly adjustments */
+        @media (hover: none) and (pointer: coarse) {
+            /* Aumenta le aree cliccabili per touch */
+            .tablet-btn,
+            .floating-btn,
+            .zoom-btn,
+            button {
+                min-height: 44px;
+                min-width: 44px;
+            }
+            
+            /* Rimuovi hover effects su touch devices */
+            .ship-card-modern:hover,
+            .tablet-btn:hover,
+            .floating-btn:hover {
+                transform: none;
+            }
+            
+            /* Usa :active invece di :hover */
+            .ship-card-modern:active {
+                transform: scale(0.98);
+            }
+            
+            .tablet-btn:active,
+            .floating-btn:active {
+                transform: scale(0.95);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <video class="loading-video" autoplay muted>
+            <source src="assets/load/loading-solaris-metal.webm" type="video/webm">
+            <!-- Fallback se il video non carica -->
+            <div style="width: 300px; height: 200px; background: linear-gradient(135deg, rgba(255,107,0,0.1), rgba(255,107,0,0.05)); border-radius: 16px; display: flex; align-items: center; justify-content: center; color: var(--accent-orange); font-weight: 700; font-size: 18px;">
+                LOADING...
+            </div>
+        </video>
+        <div class="loading-title">GESTORE FLOTTA SPAZIALE</div>
+        <div class="loading-bar-container">
+            <div class="loading-bar"></div>
+        </div>
+    </div>
+
+    <div class="canvas" id="canvas">
+        <div class="canvas-content" id="canvasContent">
+            <video class="canvas-video" autoplay loop muted playsinline>
+                <source src="assets/background/solaris-wallpaper.mp4" type="video/mp4">
+            </video>
+        </div>
+    </div>
+    
+    <!-- pulsante reset -->
+    <button class="floating-btn reset-btn" onclick="resetView()">
+        <i class="fas fa-undo-alt"></i>
+    </button>
+
+    <!-- Barra di ricerca -->
+    <button class="floating-btn search-crew-btn" onclick="toggleCrewSearch()">
+        <i class="fas fa-users-viewfinder"></i>
+    </button>
+
+    <div class="crew-search-panel" id="crewSearchPanel">
+        <h3>Cerca Membro Equipaggio</h3>
+        <input type="text" id="crewSearchInput" placeholder="Inserisci il nickname..." oninput="searchCrew()">
+        <div class="crew-search-results" id="crewSearchResults"></div>
+    </div>
+
+    <!-- controlli zoom -->
+    <div class="zoom-controls">
+        <button class="zoom-btn" onclick="zoomIn()" title="Zoom In">
+            <i class="fas fa-plus"></i>
+        </button>
+        <button class="zoom-btn" onclick="zoomOut()" title="Zoom Out">
+            <i class="fas fa-minus"></i>
+        </button>
+    </div>
+    
+    <button class="floating-btn" id="floatingBtn">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Tablet Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="tablet-container">
+            <div class="tablet-screen">
+                <!-- Tablet Header -->
+                <div class="tablet-header">
+                    <div class="tablet-title">
+                        <img src="assets/icons/solaris-logo.png" alt="Hangar Navale" class="tablet-logo">
+                        <h2>TABLET DI CONTROLLO</h2>
+                    </div>
+                    <div class="tablet-controls">
+                        <!-- pulsante indietro alle categorie   -->
+                        <button class="tablet-btn" onclick="goBackToCategories()" title="Torna alle categorie" 
+                                style="display: none;" id="backToCategoriesBtn">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <!-- pulsante tutorial   -->
+                        <button class="tablet-btn" id="infoBtn" onclick="toggleInfo()" title="Tutorial">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                        <!-- pulsante aggiungi testo -->
+                        <button class="tablet-btn" onclick="addTextBox()" title="Aggiungi Nota">
+                            <i class="fas fa-font"></i>
+                        </button>
+                        <!-- pulsante aggiungi evento -->
+                        <button class="tablet-btn" onclick="addEventCard()" title="Aggiungi Evento">
+                            <i class="fas fa-calendar"></i>
+                        </button>
+                        <!-- pulsante discord -->
+                        <button class="tablet-btn" onclick="openDiscord()" title="Discord">
+                            <i class="fab fa-discord"></i>
+                        </button>
+                        <!-- pulsante musica -->
+                        <button class="tablet-btn" id="musicBtn" onclick="toggleMusic()" title="Musica">
+                            <i class="fas fa-music"></i>
+                        </button>
+                        <!-- pulsante download -->
+                        <button class="tablet-btn" onclick="exportData()" title="Esporta">
+                            <i class="fas fa-download"></i>
+                        </button>
+                        <!-- pulsante upload -->
+                        <button class="tablet-btn" onclick="document.getElementById('importFile').click()" title="Importa">
+                            <i class="fas fa-upload"></i>
+                        </button>
+                        <!-- pulsante chiusura tablet -->
+                        <button class="tablet-btn close-tablet" onclick="closeModal()" title="Chiudi">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Search Section -->
+                <div class="tablet-search">
+                    <div class="search-wrapper">
+                        <input type="text" class="search-input" id="searchInput" placeholder="Cerca la tua nave perfetta...">
+                        <i class="fas fa-search search-icon"></i>
+                    </div>
+                </div>
+                
+                <!-- Ships Grid -->
+                <div class="tablet-content">
+                    <div class="ships-grid" id="shipsGrid"></div>
+                    <div class="no-ships-message" id="noShipsMessage" style="display: none;">
+                        <i class="fas fa-rocket"></i>
+                        <span>Nessuna nave trovata nell'hangar</span>
+                    </div>
+                </div>
+                
+                <!-- Tablet Footer -->
+                <div class="tablet-footer">
+                    <button class="tablet-action-btn" onclick="exportData()">
+                        <i class="fas fa-download"></i>
+                        ESPORTA FLOTTA
+                    </button>
+                    <button class="tablet-action-btn secondary" onclick="document.getElementById('importFile').click()">
+                        <i class="fas fa-upload"></i>
+                        IMPORTA FLOTTA
+                    </button>
+                </div>
+            </div>
+        </div>
+        <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
+    </div>
+
+    <script>
+        const roles = [
+            // 🔹 Ruoli base
+            { id: '1', name: 'Pilot' },
+            { id: '2', name: 'Copilot' },
+            { id: '3', name: 'Captain' },
+            { id: '4', name: 'Navigator' },
+            { id: '5', name: 'Helmsman' },
+
+            // 🔹 Combattimento
+            { id: '6', name: 'Gunner' },
+            { id: '7', name: 'Turret Operator' },
+            { id: '8', name: 'Missiles' },
+            { id: '9', name: 'Weapons' },
+            { id: '10', name: 'Marine' },
+            { id: '11', name: 'Boarding Team' },
+
+            // 🔹 Ingegneria
+            { id: '12', name: 'Engineer' },
+            { id: '13', name: 'Technician' },
+            { id: '14', name: 'Shields' },
+
+            // 🔹 Scansione / Tattica
+            { id: '15', name: 'Scanner' },
+            { id: '16', name: 'Observer' },
+            { id: '17', name: 'Ewar' },
+            { id: '18', name: 'Intel' },
+
+            // 🔹 Logistica
+            { id: '19', name: 'Cargo' },
+            { id: '20', name: 'Loader' },
+            { id: '21', name: 'Quartermaster' },
+
+            // 🔹 Specializzati
+            { id: '22', name: 'Science' },
+            { id: '23', name: 'Medic' },
+            { id: '24', name: 'Miner' },
+            { id: '25', name: 'Refinery' },
+            { id: '26', name: 'Salvage' },
+            { id: '27', name: 'Fuel' },
+            { id: '28', name: 'Data Runner' },
+
+            // 🔹 Navi Capital
+            { id: '29', name: 'Deck Officer' },
+            { id: '30', name: 'Fighter Pilot' },
+            { id: '31', name: 'Comms Officer' },
+            { id: '32', name: 'Security Chief' },
+            { id: '33', name: 'Exec Officer' },
+            { id: '34', name: 'Ops Officer' },
+            { id: '35', name: 'Bridge Crew' },
+            { id: '36', name: 'Hangar Crew' },
+
+            // 🔹 Futuri+ (ruoli non ancora implementati ma previsti)
+            { id: '37', name: 'Drone Operator' },
+            { id: '38', name: 'Science Officer' },
+            { id: '39', name: 'Medical Officer' },
+            { id: '40', name: 'Recon' },
+            { id: '41', name: 'Signal Analyst' },
+            { id: '42', name: 'Supply Officer' },
+        ];
+
+        const loadingShipImages = [
+            'assets/load/890j-loading.png',
+            'assets/load/idrism-loading.png',
+            'assets/load/c8x-loading.png',
+        ];
+
+        const musicTracks = [
+            "assets/music/background-orison.mp3",
+            "assets/music/Orison Voyager Bar.mp3",
+            "assets/music/Main-Theme.mp3",
+            "assets/music/First Light.mp3",
+            "assets/music/Star Engine ost.mp3",
+        ];
+
+        const categories = [
+            { id: 'aegis', name: 'Aegis', image: 'assets/category/aegis.mp4' },
+            { id: 'anvil', name: 'Anvil', image: 'assets/category/anvil.mp4' },
+            { id: 'aopoa', name: 'Aopoa', image: 'assets/category/aopoa.mp4' },
+            { id: 'argo', name: 'Argo', image: 'assets/category/argo.mp4' },
+            { id: 'banu', name: 'banu', image: 'assets/category/banu.mp4' },
+            { id: 'consolidatedoutland', name: 'Consolidated Outland', image: 'assets/category/consolidatedoutland.mp4' },
+            { id: 'crusader', name: 'Crusader', image: 'assets/category/crusader.mp4' },
+            { id: 'drake', name: 'Drake', image: 'assets/category/drake.mp4' },
+            { id: 'esperia', name: 'Esperia', image: 'assets/category/esperia.mp4' },
+            { id: 'gatac', name: 'Gatac', image: 'assets/category/gatac.mp4' },
+            { id: 'greycat', name: 'Greycat', image: 'assets/category/greycat.mp4' },
+            { id: 'kruger', name: 'Kruger', image: 'assets/category/kruger.mp4' },
+            { id: 'mirai', name: 'Mirai', image: 'assets/category/mirai.mp4' },
+            { id: 'misc', name: 'MISC', image: 'assets/category/misc.mp4' },
+            { id: 'origin', name: 'Origin', image: 'assets/category/origin.mp4' },
+            { id: 'rsi', name: 'RSI', image: 'assets/category/rsi.mp4' },
+            { id: 'tumbril', name: 'Tumbril', image: 'assets/category/tumbril.mp4' },
+            { id: 'vanduul', name: 'Vanduul', image: 'assets/category/vanduul.png' },
+        ];
+
+        // Template delle navi con ruoli specifici
+        const shipTemplates = [
+        // Aegis
+            { category: 'aegis', id: 'javelin', name: 'Javelin', image: 'assets/ships/javelin.webp', roles: '3,6,7,8,12,19,20,29,30,31,32,33,34,36' },
+            { category: 'aegis', id: 'idrism', name: 'Idris M', image: 'assets/ships/idrism.webp', roles: '3,6,7,9,29,30,31,32,33,34,35,36' },
+            { category: 'aegis', id: 'idrisp', name: 'Idris P', image: 'assets/ships/idrisp.webp', roles: '3,6,7,8,12,19,20,23,29,30,31,32,33,34,35,36' },
+            { category: 'aegis', id: 'hammerhead', name: 'Hammerhead', image: 'assets/ships/hammerhead.webp', roles: '1,2,7,12,19' },
+            { category: 'aegis', id: 'reclaimer', name: 'Reclaimer', image: 'assets/ships/reclaimer.webp', roles: '1,2,7,12,19,26' },
+            { category: 'aegis', id: 'avengertitan', name: 'Avenger Titan', image: 'assets/ships/avengertitan.webp', roles: '1,19' },
+            { category: 'aegis', id: 'avengertitanrenegade', name: 'Avenger Titan Renegade', image: 'assets/ships/avengertitanrenegade.webp', roles: '1,19' },
+            { category: 'aegis', id: 'avengerwarlock', name: 'Avenger Warlock', image: 'assets/ships/avengerwarlock.webp', roles: '1,17,19' },
+            { category: 'aegis', id: 'avengerstalker', name: 'Avenger Stalker', image: 'assets/ships/avengerstalker.webp', roles: '1,19,32' },
+            { category: 'aegis', id: 'eclipse', name: 'Eclipse', image: 'assets/ships/eclipse.webp', roles: '1,8' },
+            { category: 'aegis', id: 'gladius', name: 'Gladius', image: 'assets/ships/gladius.webp', roles: '1,9' },
+            { category: 'aegis', id: 'gladiuspirate', name: 'Gladius Pirate', image: 'assets/ships/gladiuspirate.webp', roles: '1,9' },
+            { category: 'aegis', id: 'gladiusvaliant', name: 'Gladius Valiant', image: 'assets/ships/gladiusvaliant.webp', roles: '1,9' },
+            { category: 'aegis', id: 'gladiator', name: 'Gladiator', image: 'assets/ships/gladiator.webp', roles: '1,2,6,8,10' },
+            { category: 'aegis', id: 'redeemer', name: 'Redeemer', image: 'assets/ships/redeemer.webp', roles: '1,2,6,7,10' },
+            { category: 'aegis', id: 'retaliatorbomber', name: 'Retaliator Bomber', image: 'assets/ships/retaliatorbomber.webp', roles: '1,2,6,7,8,29,30,31,32,33,34,35' },
+            { category: 'aegis', id: 'sabre', name: 'Sabre', image: 'assets/ships/sabre.webp', roles: '1,9' },
+            { category: 'aegis', id: 'vanguardwarden', name: 'Vanguard Warden', image: 'assets/ships/vanguardwarden.webp', roles: '1,2,6,9' },
+            { category: 'aegis', id: 'vulcan', name: 'Vulcan', image: 'assets/ships/vulcan.webp', roles: '1,2,12,13,27' },
+
+            // Anvil
+            { category: 'anvil', id: 'arrow', name: 'Arrow', image: 'assets/ships/arrow.webp', roles: '1,9' },
+            { category: 'anvil', id: 'ballista', name: 'Ballista', image: 'assets/ships/ballista.webp', roles: '1,2,8' },
+            { category: 'anvil', id: 'carrack', name: 'Carrack', image: 'assets/ships/carrack.webp', roles: '1,2,4,5,12,13,15,16,19,20,21' },
+            { category: 'anvil', id: 'crucible', name: 'Crucible', image: 'assets/ships/crucible.webp', roles: '1,2,12,13,23' },
+            { category: 'anvil', id: 'f7chornet', name: 'F7C Hornet', image: 'assets/ships/f7chornet.webp', roles: '1,9' },
+            { category: 'anvil', id: 'f7chornetmkii', name: 'F7C Hornet Mk II', image: 'assets/ships/f7chornetmkii.webp', roles: '1,9' },
+            { category: 'anvil', id: 'hawk', name: 'Hawk', image: 'assets/ships/hawk.webp', roles: '1,9,32' },
+            { category: 'anvil', id: 'hornetghost', name: 'Hornet Ghost', image: 'assets/ships/hornetghost.webp', roles: '1,9' },
+            { category: 'anvil', id: 'hornettracker', name: 'Hornet Tracker', image: 'assets/ships/hornettracker.webp', roles: '1,15,16' },
+            { category: 'anvil', id: 'hornetwildfire', name: 'Hornet Wildfire', image: 'assets/ships/hornetwildfire.webp', roles: '1,9' },
+            { category: 'anvil', id: 'hurricane', name: 'Hurricane', image: 'assets/ships/hurricane.webp', roles: '1,2,6,9' },
+            { category: 'anvil', id: 'liberator', name: 'Liberator', image: 'assets/ships/liberator.webp', roles: '1,2,6,10,29,30,31,32,33,34,35,36' },
+            { category: 'anvil', id: 'paladin', name: 'Paladin', image: 'assets/ships/paladin.webp', roles: '1,2,6,7,9,32' },
+            { category: 'anvil', id: 'spartan', name: 'Spartan', image: 'assets/ships/spartan.webp', roles: '1,2,6,10' },
+            { category: 'anvil', id: 'terrapin', name: 'Terrapin', image: 'assets/ships/terrapin.webp', roles: '1,2,15,16' },
+            { category: 'anvil', id: 'terrapinmedic', name: 'Terrapin Medic', image: 'assets/ships/terrapinmedic.webp', roles: '1,2,23' },
+            { category: 'anvil', id: 'valkyrie', name: 'Valkyrie', image: 'assets/ships/valkyrie.webp', roles: '1,2,6,7,10' },
+
+            // Aopoa
+            { category: 'aopoa', id: 'santokyai', name: 'SanTok Yai', image: 'assets/ships/santokyai.webp', roles: '1,9,15,16' },
+            { category: 'aopoa', id: 'xiankhartu', name: 'Xian Khartu Al', image: 'assets/ships/xiankhartu.webp', roles: '1,9,15,16' },
+
+            // Argo
+            { category: 'argo', id: 'mpuvpersonel', name: 'MPUV Personel', image: 'assets/ships/mpuvpersonel.webp', roles: '1,19,20' },
+            { category: 'argo', id: 'mpuvcargo', name: 'MPUV Cargo', image: 'assets/ships/mpuvcargo.webp', roles: '1,19,20' },
+            { category: 'argo', id: 'mpvutractor', name: 'MPVU Tractor', image: 'assets/ships/mpvutractor.webp', roles: '1,2,19,20,21' },
+            { category: 'argo', id: 'raft', name: 'Raft', image: 'assets/ships/raft.webp', roles: '1,2,19,20,21' },
+            { category: 'argo', id: 'srv', name: 'SRV', image: 'assets/ships/srv.webp', roles: '1,2,12,13,26' },
+
+            // Banu
+            { category: 'banu', id: 'banudefender', name: 'Banu Defender', image: 'assets/ships/banudefender.webp', roles: '1,2,6,9,19,20' },
+
+            // Consolidated Outland
+            { category: 'consolidatedoutland', id: 'mustangalpha', name: 'Mustang Alpha', image: 'assets/ships/mustangalpha.webp', roles: '1' },
+            { category: 'consolidatedoutland', id: 'pioneer', name: 'Pioneer', image: 'assets/ships/pioneer.webp', roles: '1,2,12,13,22,24,25,26' },
+
+            // Crusader
+            { category: 'crusader', id: 'aresion', name: 'Ares Ion', image: 'assets/ships/aresion.webp', roles: '1,6,8,9' },
+            { category: 'crusader', id: 'genesisstarliner', name: 'Genesis Starliner', image: 'assets/ships/genesisstarliner.webp', roles: '1,2,19,20,21,29,30,31,35' },
+            { category: 'crusader', id: 'herculesstarlifterc2', name: 'Hercules Starlifter C2', image: 'assets/ships/herculesstarlifterc2.webp', roles: '1,2,12,13,19,20,21' },
+            { category: 'crusader', id: 'herculesstarlifterm2', name: 'Hercules Starlifter M2', image: 'assets/ships/herculesstarlifterm2.webp', roles: '1,2,6,12,13,19,20,21' },
+            { category: 'crusader', id: 'herculesstarliftera2', name: 'Hercules Starlifter A2', image: 'assets/ships/herculesstarliftera2.webp', roles: '1,2,6,8,12,13,19,20,21' },
+            { category: 'crusader', id: 'mercurystarrunner', name: 'Mercury Star Runner', image: 'assets/ships/mercurystarrunner.webp', roles: '1,2,15,16,19,20,21,28' },
+            { category: 'crusader', id: 'starlancermax', name: 'Starlancer Max', image: 'assets/ships/starlancermax.webp', roles: '1,2,6,19,20,21' },
+            { category: 'crusader', id: 'starlancertac', name: 'Starlancer Tac', image: 'assets/ships/starlancertac.webp', roles: '1,2,6,7,15,16' },
+
+            // Drake
+            { category: 'drake', id: 'buccaneer', name: 'Buccaneer', image: 'assets/ships/buccaneer.webp', roles: '1,6,9' },
+            { category: 'drake', id: 'caterpillar', name: 'Caterpillar', image: 'assets/ships/caterpillar.webp', roles: '1,2,6,12,13,19,20,21' },
+            { category: 'drake', id: 'corsair', name: 'Corsair', image: 'assets/ships/corsair.webp', roles: '1,2,6,7,15,16' },
+            { category: 'drake', id: 'cutter', name: 'Cutter', image: 'assets/ships/cutter.webp', roles: '1,19' },
+            { category: 'drake', id: 'cutterrambler', name: 'Cutter Rambler', image: 'assets/ships/cutterrambler.webp', roles: '1,19,20' },
+            { category: 'drake', id: 'cutterscout', name: 'Cutter Scout', image: 'assets/ships/cutterscout.webp', roles: '1,15,16' },
+            { category: 'drake', id: 'cutlassblack', name: 'Cutlass Black', image: 'assets/ships/cutlassblack.webp', roles: '1,2,7,19' },
+            { category: 'drake', id: 'cutlassblue', name: 'Cutlass Blue', image: 'assets/ships/cutlassblue.webp', roles: '1,2,6,7,32' },
+            { category: 'drake', id: 'cutlassred', name: 'Cutlass Red', image: 'assets/ships/cutlassred.webp', roles: '1,2,23' },
+            { category: 'drake', id: 'cutlasssteel', name: 'Cutlass Steel', image: 'assets/ships/cutlasssteel.webp', roles: '1,2,6,10' },
+            { category: 'drake', id: 'dragonflyblack', name: 'Dragonfly Black', image: 'assets/ships/dragonflyblack.webp', roles: '1' },
+            { category: 'drake', id: 'dragonflyyellowjacket', name: 'Dragonfly Yellowjacket', image: 'assets/ships/dragonflyyellowjacket.webp', roles: '1' },
+            { category: 'drake', id: 'herald', name: 'Herald', image: 'assets/ships/herald.webp', roles: '1,15,16,18,28' },
+            { category: 'drake', id: 'ironclad', name: 'Ironclad', image: 'assets/ships/ironclad.webp', roles: '1,2,6,19,20,21,29,30,31,32,33,34,35,36' },
+            { category: 'drake', id: 'ironcladassault', name: 'Ironclad Assault', image: 'assets/ships/ironcladassault.webp', roles: '1,2,6,7,10,29,30,31,32,33,34,35,36' },
+            { category: 'drake', id: 'kraken', name: 'Kraken', image: 'assets/ships/kraken.webp', roles: '3,6,7,29,30,31,32,33,34,35,36' },
+            { category: 'drake', id: 'krakenprivateer', name: 'Kraken Privateer', image: 'assets/ships/krakenprivateer.webp', roles: '3,6,7,19,20,21,29,30,31,32,33,34,35,36' },
+            { category: 'drake', id: 'mule', name: 'Mule', image: 'assets/ships/mule.webp', roles: '1,19,20' },
+            { category: 'drake', id: 'vulture', name: 'Vulture', image: 'assets/ships/vulture.webp', roles: '1,2,24,25,26' },
+
+            // Esperia
+            { category: 'esperia', id: 'prowler', name: 'Prowler', image: 'assets/ships/prowler.webp', roles: '1,2,10,11' },
+            { category: 'esperia', id: 'talon', name: 'Talon', image: 'assets/ships/talon.webp', roles: '1,6,9' },
+            { category: 'esperia', id: 'vanduulblade', name: 'Vanduul Blade', image: 'assets/ships/vanduulblade.webp', roles: '1,9' },
+            { category: 'esperia', id: 'vanduulglaive', name: 'Vanduul Glaive', image: 'assets/ships/vanduulglaive.webp', roles: '1,9' },
+
+            // Gatac
+            { category: 'gatac', id: 'railen', name: 'Railen', image: 'assets/ships/railen.webp', roles: '1,2,19,20,21' },
+            { category: 'gatac', id: 'syulen', name: 'Syulen', image: 'assets/ships/syulen.webp', roles: '1,19,20,21,22' },
+
+            // Greycat
+            { category: 'greycat', id: 'greycatptv', name: 'Greycat PTV', image: 'assets/ships/greycatptv.webp', roles: '1' },
+            { category: 'greycat', id: 'roc', name: 'ROC', image: 'assets/ships/roc.webp', roles: '1,24' },
+            { category: 'greycat', id: 'rocds', name: 'ROC DS', image: 'assets/ships/rocds.webp', roles: '1,2,24' },
+
+            // Kruger
+            { category: 'kruger', id: 'p52merlin', name: 'P-52 Merlin', image: 'assets/ships/p52merlin.webp', roles: '1,9' },
+            { category: 'kruger', id: 'p72archimedes', name: 'P-72 Archimedes', image: 'assets/ships/p72archimedes.webp', roles: '1,9' },
+
+            // Mirai
+            { category: 'mirai', id: 'fury', name: 'Fury', image: 'assets/ships/fury.webp', roles: '1,6,8,9' },
+            { category: 'mirai', id: 'furyix', name: 'Fury IX', image: 'assets/ships/furylx.webp', roles: '1,6,8,9' },
+            { category: 'mirai', id: 'furymx', name: 'Fury MX', image: 'assets/ships/furymx.webp', roles: '1,8,9' },
+            { category: 'mirai', id: 'nox', name: 'Nox', image: 'assets/ships/nox.webp', roles: '1' },
+            { category: 'mirai', id: 'noxkue', name: 'Nox Kue', image: 'assets/ships/noxkue.webp', roles: '1' },
+            { category: 'mirai', id: 'pulse', name: 'Pulse', image: 'assets/ships/pulse.webp', roles: '1,6,17' },
+
+            // MISC
+            { category: 'misc', id: 'endeavor', name: 'Endeavor', image: 'assets/ships/endeavor.webp', roles: '1,2,12,13,22,23' },
+            { category: 'misc', id: 'expanse', name: 'Expanse', image: 'assets/ships/expanse.webp', roles: '1,2,19,20,21,22' },
+            { category: 'misc', id: 'freelancer', name: 'Freelancer', image: 'assets/ships/freelancer.webp', roles: '1,2,6,19,20,21' },
+            { category: 'misc', id: 'freelancerdur', name: 'Freelancer DUR', image: 'assets/ships/freelancerdur.webp', roles: '1,2,6,15,16,19,20,21' },
+            { category: 'misc', id: 'freelancermax', name: 'Freelancer MAX', image: 'assets/ships/freelancermax.webp', roles: '1,2,6,19,20,21' },
+            { category: 'misc', id: 'freelancermis', name: 'Freelancer MIS', image: 'assets/ships/freelancermis.webp', roles: '1,2,6,8,19,20,21' },
+            { category: 'misc', id: 'hulla', name: 'Hull A', image: 'assets/ships/hulla.webp', roles: '1,19,20' },
+            { category: 'misc', id: 'hullb', name: 'Hull B', image: 'assets/ships/hullb.webp', roles: '1,2,19,20,21' },
+            { category: 'misc', id: 'hullc', name: 'Hull C', image: 'assets/ships/hullc.webp', roles: '1,2,19,20,21' },
+            { category: 'misc', id: 'hulld', name: 'Hull D', image: 'assets/ships/hulld.webp', roles: '1,2,19,20,21' },
+            { category: 'misc', id: 'hulle', name: 'Hull E', image: 'assets/ships/hulle.webp', roles: '1,2,19,20,21' },
+            { category: 'misc', id: 'mole', name: 'Mole', image: 'assets/ships/mole.webp', roles: '1,2,24' },
+            { category: 'misc', id: 'odyssey', name: 'Odyssey', image: 'assets/ships/odyssey.webp', roles: '1,2,12,13,24,29,30,31,32,33,34,35' },
+            { category: 'misc', id: 'prospector', name: 'Prospector', image: 'assets/ships/prospector.webp', roles: '1,24' },
+            { category: 'misc', id: 'razor', name: 'Razor', image: 'assets/ships/razor.webp', roles: '1,9' },
+            { category: 'misc', id: 'reliantkore', name: 'Reliant Kore', image: 'assets/ships/reliantkore.webp', roles: '1,2,19,20,21' },
+            { category: 'misc', id: 'starfarer', name: 'Starfarer', image: 'assets/ships/starfarer.webp', roles: '1,2,12,13,19,20,21,27' },
+
+            // Origin
+            { category: 'origin', id: '85x', name: '85X', image: 'assets/ships/85x.webp', roles: '1,2' },
+            { category: 'origin', id: '100i', name: '100i', image: 'assets/ships/100i.webp', roles: '1' },
+            { category: 'origin', id: '125a', name: '125a', image: 'assets/ships/125a.webp', roles: '1,9' },
+            { category: 'origin', id: '135c', name: '135c', image: 'assets/ships/135c.webp', roles: '1,19' },
+            { category: 'origin', id: '300i', name: '300i', image: 'assets/ships/300i.webp', roles: '1' },
+            { category: 'origin', id: '315p', name: '315p', image: 'assets/ships/315p.webp', roles: '1,15,16' },
+            { category: 'origin', id: '325a', name: '325a', image: 'assets/ships/325a.webp', roles: '1,9' },
+            { category: 'origin', id: '350r', name: '350r', image: 'assets/ships/350r.webp', roles: '1' },
+            { category: 'origin', id: '400i', name: '400i', image: 'assets/ships/400i.webp', roles: '1,2,15,16,19,20' },
+            { category: 'origin', id: '600iexplorer', name: '600i Explorer', image: 'assets/ships/600iexplorer.webp', roles: '1,2,15,16,19,20,21' },
+            { category: 'origin', id: '600itouring', name: '600i Touring', image: 'assets/ships/600itouring.webp', roles: '1,2,19,20,21' },
+            { category: 'origin', id: '890jump', name: '890 Jump', image: 'assets/ships/890jump.webp', roles: '1,2,12,13,19,20,21' },
+            { category: 'origin', id: 'c8rpiscesrescue', name: 'C8R Pisces Rescue', image: 'assets/ships/c8rpiscesrescue.webp', roles: '1,2,23' },
+            { category: 'origin', id: 'c8xpiscesexpedition', name: 'C8X Pisces Expedition', image: 'assets/ships/c8xpiscesexpedition.webp', roles: '1,2,15,16,22' },
+            { category: 'origin', id: 'g12', name: 'G12', image: 'assets/ships/g12.webp', roles: '1' },
+            { category: 'origin', id: 'g12a', name: 'G12a', image: 'assets/ships/g12a.webp', roles: '1,2,6' },
+            { category: 'origin', id: 'g12r', name: 'G12r', image: 'assets/ships/g12r.webp', roles: '1' },
+            { category: 'origin', id: 'm50', name: 'M50', image: 'assets/ships/m50.webp', roles: '1' },
+            { category: 'origin', id: 'piscesc8', name: 'Pisces C8', image: 'assets/ships/piscesc8.webp', roles: '1,2,19,20,21' },
+
+            // RSI
+            { category: 'rsi', id: 'apollomedivac', name: 'Apollo Medivac', image: 'assets/ships/apollomedivac.webp', roles: '1,2,19,20,23' },
+            { category: 'rsi', id: 'apollotriage', name: 'Apollo Triage', image: 'assets/ships/apollotriage.webp', roles: '1,2,19,20,23' },
+            { category: 'rsi', id: 'auroraes', name: 'Aurora ES', image: 'assets/ships/auroraes.webp', roles: '1' },
+            { category: 'rsi', id: 'constellationandromeda', name: 'Constellation Andromeda', image: 'assets/ships/constellationandromeda.webp', roles: '1,2,6,7,19,20,21' },
+            { category: 'rsi', id: 'constellationaquila', name: 'Constellation Aquila', image: 'assets/ships/constellationaquila.webp', roles: '1,2,15,16,19,20,21' },
+            { category: 'rsi', id: 'constellationphoenix', name: 'Constellation Phoenix', image: 'assets/ships/constellationphoenix.webp', roles: '1,2,6,7,19,20,21' },
+            { category: 'rsi', id: 'constellationtaurus', name: 'Constellation Taurus', image: 'assets/ships/constellationtaurus.webp', roles: '1,2,6,7,19,20,21' },
+            { category: 'rsi', id: 'galaxy', name: 'Galaxy', image: 'assets/ships/galaxy.webp', roles: '1,2,6,12,13,19,20,21' },
+            { category: 'rsi', id: 'mantis', name: 'Mantis', image: 'assets/ships/mantis.webp', roles: '1,6,17' },
+            { category: 'rsi', id: 'nautilus', name: 'Nautilus', image: 'assets/ships/nautilus.webp', roles: '1,2,6,29,30,31,32,33,34,35,36' },
+            { category: 'rsi', id: 'orion', name: 'Orion', image: 'assets/ships/orion.webp', roles: '1,2,12,13,24,25,26' },
+            { category: 'rsi', id: 'perseus', name: 'Perseus', image: 'assets/ships/perseus.webp', roles: '1,2,6,7,15,16' },
+            { category: 'rsi', id: 'polaris', name: 'Polaris', image: 'assets/ships/polaris.webp', roles: '1,2,6,7,8,12,29,30,31,32,33,34,35' },
+            { category: 'rsi', id: 'scorpius', name: 'Scorpius', image: 'assets/ships/scorpius.webp', roles: '1,2,6,9' },
+            { category: 'rsi', id: 'scorpiusantares', name: 'Scorpius Antares', image: 'assets/ships/scorpiusantares.webp', roles: '1,2,6,9' },
+            { category: 'rsi', id: 'zeusmkiies', name: 'Zeus MkII ES', image: 'assets/ships/zeusmkiies.webp', roles: '1,15,16' },
+            { category: 'rsi', id: 'zeusmkiimr', name: 'Zeus MkII MR', image: 'assets/ships/zeusmkiimr.webp', roles: '1,6,9,19,20' },
+            { category: 'rsi', id: 'zeusmkiicl', name: 'Zeus MkII CL', image: 'assets/ships/zeusmkiicl.webp', roles: '1,19,20,21' },
+
+            // Tumbril
+            { category: 'tumbril', id: 'centurion', name: 'Centurion', image: 'assets/ships/centurion.webp', roles: '1,2,6,9' },
+            { category: 'tumbril', id: 'cyclone', name: 'Cyclone', image: 'assets/ships/cyclone.webp', roles: '1' },
+            { category: 'tumbril', id: 'cyclonemt', name: 'Cyclone MT', image: 'assets/ships/cyclonemt.webp', roles: '1,2,6' },
+            { category: 'tumbril', id: 'cyclonerc', name: 'Cyclone RC', image: 'assets/ships/cyclonerc.webp', roles: '1,15,16' },
+            { category: 'tumbril', id: 'cyclonern', name: 'Cyclone RN', image: 'assets/ships/cyclonern.webp', roles: '1' },
+            { category: 'tumbril', id: 'cyclonetr', name: 'Cyclone TR', image: 'assets/ships/cyclonetr.webp', roles: '1,2' },
+            { category: 'tumbril', id: 'nova', name: 'Nova', image: 'assets/ships/nova.webp', roles: '1,6,8,9' },
+            { category: 'tumbril', id: 'rangercv', name: 'Ranger CV', image: 'assets/ships/rangercv.webp', roles: '1,2,6,19,20,21' },
+            { category: 'tumbril', id: 'rangerrc', name: 'Ranger RC', image: 'assets/ships/rangerrc.webp', roles: '1' },
+            { category: 'tumbril', id: 'rangertr', name: 'Ranger TR', image: 'assets/ships/rangertr.webp', roles: '1,2' },
+            { category: 'tumbril', id: 'storm', name: 'Storm', image: 'assets/ships/storm.webp', roles: '1,6,9' },
+            { category: 'tumbril', id: 'ursa', name: 'Ursa', image: 'assets/ships/ursa.webp', roles: '1' },
+            { category: 'tumbril', id: 'ursafortuna', name: 'Ursa Fortuna', image: 'assets/ships/ursafortuna.webp', roles: '1' },
+            { category: 'tumbril', id: 'ursamedivac', name: 'Ursa Medivac', image: 'assets/ships/ursamedivac.webp', roles: '1,23' },
+
+            // Vanduul
+            { category: 'vanduul', id: 'scythe', name: 'Vanduul Scythe', image: 'assets/ships/scythe.webp', roles: '1,9' },
+        ];
+
+        // Stato globale
+        let ships = [];
+        let draggedElement = null;
+        let dragOffset = { x: 0, y: 0 };
+        let canvasOffset = { x: 0, y: 0 };
+        let isDraggingCanvas = false;
+        let filteredShips = [...shipTemplates];
+        let selectedCategory = null;
+        let canvasZoom = 1;
+        const MIN_ZOOM = 0.3;
+        const MAX_ZOOM = 2;
+        const ZOOM_STEP = 0.1;
+
+        // Inizializzazione
+        document.addEventListener('DOMContentLoaded', function() {
+            // Scegli nave random per loading screen
+            const randomShip = loadingShipImages[Math.floor(Math.random() * loadingShipImages.length)];
+            const loadingBar = document.querySelector('.loading-bar');
+            if (loadingBar) {
+                loadingBar.style.setProperty('--loading-ship-image', `url('${randomShip}')`);
+            }
+            
+            initializeApp();
+            loadFromStorage();
+        });
+
+        function initializeApp() {
+            // Nascondi il contenuto principale inizialmente
+            document.getElementById('canvas').style.opacity = '0';
+            document.getElementById('floatingBtn').style.opacity = '0';
+            document.querySelector('.reset-btn').style.opacity = '0';
+            
+            // Avvia il timer per la loading screen
+            setTimeout(() => {
+                hideLoadingScreen();
+            }, 5000);
+            
+            // Event listeners
+            document.getElementById('floatingBtn').addEventListener('click', openModal);
+            document.getElementById('modalOverlay').addEventListener('click', handleModalClick);
+            document.getElementById('searchInput').addEventListener('input', handleSearch);
+            
+            // Canvas drag handlers
+            const canvas = document.getElementById('canvas');
+            canvas.addEventListener('mousedown', handleCanvasMouseDown);
+            canvas.addEventListener('mousemove', handleCanvasMouseMove);
+            canvas.addEventListener('mouseup', handleCanvasMouseUp);
+            canvas.addEventListener('mouseleave', handleCanvasMouseUp);
+            canvas.addEventListener('wheel', handleMouseWheel, { passive: false });
+            
+            // Keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeModal();
+                }
+            });
+
+            // Prevent context menu on canvas
+            canvas.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+            });
+
+            renderShipsGrid();
+
+            // Barra di ricerca
+            document.addEventListener('click', function(e) {
+                const panel = document.getElementById('crewSearchPanel');
+                const btn = document.querySelector('.search-crew-btn');
+                if (panel.classList.contains('visible') && 
+                    !panel.contains(e.target) && 
+                    !btn.contains(e.target)) {
+                    toggleCrewSearch();
+                }
+            });
+
+            // CHIAMATA alla funzione touch support
+            initTouchSupport();
+        }
+
+        // FUNZIONE SEPARATA per il supporto touch (va FUORI da initializeApp)
+        function initTouchSupport() {
+            const canvas = document.getElementById('canvas');
+            let touchStartX, touchStartY;
+            let initialDistance = 0;
+            let initialZoom = 1;
+            
+            // Touch singolo per drag
+            canvas.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 1) {
+                    touchStartX = e.touches[0].clientX - canvasOffset.x;
+                    touchStartY = e.touches[0].clientY - canvasOffset.y;
+                    isDraggingCanvas = true;
+                } else if (e.touches.length === 2) {
+                    // Pinch to zoom - calcola distanza iniziale
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    initialDistance = Math.sqrt(dx * dx + dy * dy);
+                    initialZoom = canvasZoom;
+                }
+            }, { passive: true });
+            
+            canvas.addEventListener('touchmove', function(e) {
+                if (e.touches.length === 1 && isDraggingCanvas) {
+                    // Drag con un dito
+                    e.preventDefault();
+                    canvasOffset.x = e.touches[0].clientX - touchStartX;
+                    canvasOffset.y = e.touches[0].clientY - touchStartY;
+                    applyZoom();
+                } else if (e.touches.length === 2) {
+                    // Zoom con due dita
+                    e.preventDefault();
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const scale = distance / initialDistance;
+                    canvasZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, initialZoom * scale));
+                    applyZoom();
+                }
+            }, { passive: false });
+            
+            canvas.addEventListener('touchend', function(e) {
+                if (e.touches.length === 0) {
+                    isDraggingCanvas = false;
+                }
+            });
+        }
+
+        function handleMouseWheel(e) {
+            e.preventDefault();
+            
+            // Determina la direzione dello zoom
+            const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+            const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, canvasZoom + delta));
+            
+            if (newZoom !== canvasZoom) {
+                // Calcola il punto del mouse rispetto al canvas
+                const rect = document.getElementById('canvas').getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                // Calcola il punto nel canvas prima dello zoom
+                const beforeX = (mouseX - canvasOffset.x) / canvasZoom;
+                const beforeY = (mouseY - canvasOffset.y) / canvasZoom;
+                
+                // Applica il nuovo zoom
+                canvasZoom = newZoom;
+                
+                // Calcola il nuovo offset per mantenere il punto del mouse fisso
+                canvasOffset.x = mouseX - beforeX * canvasZoom;
+                canvasOffset.y = mouseY - beforeY * canvasZoom;
+                
+                applyZoom();
+            }
+        }
+
+        function applyZoom() {
+            const canvasContent = document.getElementById('canvasContent');
+            canvasContent.style.transform = `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${canvasZoom})`;
+            canvasContent.style.transformOrigin = '0 0';
+            canvasContent.style.backgroundSize = `${50 * canvasZoom}px ${50 * canvasZoom}px`;
+        }
+
+        function hideLoadingScreen() {
+            const loadingScreen = document.getElementById('loadingScreen');
+            const canvas = document.getElementById('canvas');
+            const floatingBtn = document.getElementById('floatingBtn');
+            const resetBtn = document.querySelector('.reset-btn');
+            
+            // Fade out loading screen
+            loadingScreen.classList.add('fade-out');
+            
+            // Fade in main content
+            canvas.style.transition = 'opacity 0.5s ease-in';
+            floatingBtn.style.transition = 'opacity 0.5s ease-in';
+            resetBtn.style.transition = 'opacity 0.5s ease-in';
+            
+            setTimeout(() => {
+                canvas.style.opacity = '1';
+                floatingBtn.style.opacity = '1';
+                resetBtn.style.opacity = '1';
+                
+                // Rimuovi loading screen dal DOM dopo la transizione
+                setTimeout(() => {
+                    loadingScreen.remove();
+                }, 500);
+            }, 250);
+        }
+
+        function openModal() {
+            const overlay = document.getElementById('modalOverlay');
+            overlay.style.display = 'flex';
+            
+            // forza un reflow per far partire la transizione
+            void overlay.offsetWidth;
+            
+            overlay.classList.add('visible');
+            overlay.classList.remove('closing');
+        }
+
+        function closeModal() {
+            const overlay = document.getElementById('modalOverlay');
+            overlay.classList.add('closing');
+            overlay.classList.remove('visible');
+
+            // nasconde SOLO dopo la transizione
+            const onTransitionEnd = (e) => {
+                if (e.propertyName === "opacity") {
+                    overlay.style.display = 'none';
+                    overlay.removeEventListener('transitionend', onTransitionEnd);
+                }
+            };
+
+            overlay.addEventListener('transitionend', onTransitionEnd);
+        }
+
+        function zoomIn() {
+            if (canvasZoom < MAX_ZOOM) {
+                canvasZoom = Math.min(MAX_ZOOM, canvasZoom + ZOOM_STEP);
+                applyZoom();
+            }
+        }
+
+        function zoomOut() {
+            if (canvasZoom > MIN_ZOOM) {
+                canvasZoom = Math.max(MIN_ZOOM, canvasZoom - ZOOM_STEP);
+                applyZoom();
+            }
+        }
+
+        function resetZoom() {
+            canvasZoom = 1;
+            applyZoom();
+        }
+
+        function applyZoom() {
+            const canvasContent = document.getElementById('canvasContent');
+            canvasContent.style.transform = `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${canvasZoom})`;
+            canvasContent.style.transformOrigin = '0 0';
+        }
+
+        function handleModalClick(e) {
+            if (e.target === document.getElementById('modalOverlay')) {
+                closeModal();
+            }
+        }
+
+        function handleSearch(e) {
+            const searchTerm = e.target.value.toLowerCase().trim();
+            
+            if (searchTerm === '') {
+                // Ricerca vuota: mostra tutto della categoria corrente (o categorie)
+                filteredShips = [...shipTemplates];
+            } else {
+                // Cerca in tutte le navi
+                filteredShips = shipTemplates.filter(ship => 
+                    ship.name.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            renderShipsGrid();
+        }
+
+        function renderShipsGrid() {
+            const grid = document.getElementById('shipsGrid');
+            const noShipsMessage = document.getElementById('noShipsMessage');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+            
+            grid.innerHTML = '';
+            noShipsMessage.style.display = 'none';
+            
+            // Se nessuna categoria selezionata E non c'è ricerca, mostra le categorie
+            if (!selectedCategory && searchTerm === '') {
+                categories.forEach(category => {
+                    const card = document.createElement('div');
+                    card.className = 'category-card';
+                    card.onclick = () => selectCategory(category.id);
+                    
+                    // Verifica se è un video o un'immagine
+                    const isVideo = category.image.endsWith('.mp4') || category.image.endsWith('.webm');
+                    
+                    if (isVideo) {
+                        card.innerHTML = `
+                            <video class="category-image" autoplay loop muted playsinline
+                                onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:var(--accent-orange);font-size:24px;font-weight:700;\\'>${category.name}</div>';">
+                                <source src="${category.image}" type="video/mp4">
+                            </video>
+                        `;
+                    } else {
+                        card.innerHTML = `
+                            <img class="category-image" src="${category.image}" alt="${category.name}" 
+                                onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:var(--accent-orange);font-size:24px;font-weight:700;\\'>${category.name}</div>';">
+                        `;
+                    }
+                    
+                    grid.appendChild(card);
+                });
+                return;
+            }
+            
+            // Mostra le navi della categoria selezionata o i risultati della ricerca
+            const categoryShips = searchTerm !== '' 
+                ? filteredShips  // Se c'è ricerca, mostra i risultati filtrati
+                : filteredShips.filter(ship => ship.category === selectedCategory);  // Altrimenti filtra per categoria
+            
+            if (categoryShips.length === 0) {
+                noShipsMessage.style.display = 'flex';
+                return;
+            }
+            
+            categoryShips.forEach(template => {
+                const card = document.createElement('div');
+                card.className = 'ship-card-modern';
+                card.onclick = () => selectShip(template.id);
+                
+                card.innerHTML = `
+                    <img class="ship-image-modern" src="${template.image}" alt="${template.name}" 
+                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="ship-placeholder-modern">NAVE<br>${template.name}</div>
+                    <div class="ship-name-modern">${template.name}</div>
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+
+        function selectShip(templateId) {
+            addShipToCanvas(templateId, 100 + Math.random() * 300, 100 + Math.random() * 300);
+            closeModal();
+        }
+
+        function selectCategory(categoryId) {
+            selectedCategory = categoryId;
+            document.getElementById('backToCategoriesBtn').style.display = 'flex';
+            renderShipsGrid();
+        }
+
+        function goBackToCategories() {
+            selectedCategory = null;
+            document.getElementById('searchInput').value = '';
+            filteredShips = [...shipTemplates];
+            renderShipsGrid();
+            document.getElementById('backToCategoriesBtn').style.display = 'none';
+        }
+
+        // Canvas panning functionality
+        function handleCanvasMouseDown(e) {
+            if (e.target === document.getElementById('canvas') || e.target === document.getElementById('canvasContent')) {
+                if (!e.target.closest('.ship-card')) {
+                    isDraggingCanvas = true;
+                    document.getElementById('canvas').style.cursor = 'grabbing';
+                    dragOffset.x = e.clientX - canvasOffset.x;
+                    dragOffset.y = e.clientY - canvasOffset.y;
+                }
+            }
+        }
+
+        function handleCanvasMouseMove(e) {
+            if (isDraggingCanvas) {
+                canvasOffset.x = e.clientX - dragOffset.x;
+                canvasOffset.y = e.clientY - dragOffset.y;
+                applyZoom(); // usa applyZoom invece di impostare direttamente il transform
+            }
+        }
+
+        function handleCanvasMouseUp(e) {
+            if (isDraggingCanvas) {
+                isDraggingCanvas = false;
+                document.getElementById('canvas').style.cursor = 'grab';
+            }
+        }
+
+        function resetView() {
+            canvasOffset.x = 0;
+            canvasOffset.y = 0;
+            canvasZoom = 1;
+            applyZoom();
+        }
+
+        function addShipToCanvas(templateId, x = 100, y = 100) {
+            const template = shipTemplates.find(t => t.id === templateId);
+            if (!template) return;
+
+            const ship = {
+                id: `ship-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                templateId: templateId,
+                x: x,
+                y: y,
+                crew: [],
+                locked: false
+            };
+
+            ships.push(ship);
+            renderShip(ship);
+            saveToStorage();
+        }
+
+        function renderShip(ship) {
+            const template = shipTemplates.find(t => t.id === ship.templateId);
+            
+            // PRIMA controlla se il template esiste
+            if (!template) {
+                console.error('Template non trovato per ship:', ship);
+                return; // Esce dalla funzione se il template non esiste
+            }
+            
+            // POI ottieni il canvasContent e usa il template
+            const canvasContent = document.getElementById('canvasContent');
+
+            const shipCard = document.createElement('div');
+            shipCard.className = 'ship-card';
+            shipCard.style.left = ship.x + 'px';
+            shipCard.style.top = ship.y + 'px';
+            shipCard.dataset.shipId = ship.id;
+
+            shipCard.innerHTML = `
+                <div class="ship-header">
+                    <img class="ship-image" src="${template.image}" alt="${template.name}" 
+                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="placeholder-image" style="display:none;">NAVE<br>${template.name}</div>
+                    <div class="ship-title-row">
+                        <div class="ship-title">${template.name}</div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="lock-ship ${ship.locked ? 'locked' : ''}" onclick="toggleLockShip('${ship.id}')" title="${ship.locked ? 'Sblocca nave' : 'Blocca nave'}">
+                                <i class="fa-solid fa-lock${ship.locked ? '' : '-open'}"></i>
+                            </button>
+                            <button class="delete-ship" onclick="deleteShip('${ship.id}')">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="crew-section">
+                    <div class="crew-header">
+                        <h4>Equipaggio</h4>
+                        <button class="add-member" onclick="addCrewMember('${ship.id}')">+ Membro</button>
+                    </div>
+                    <div class="crew-list" id="crew-${ship.id}"></div>
+                </div>
+            `;
+
+            // Rende draggable la ship card
+            shipCard.addEventListener('mousedown', startDragShip);
+            
+            canvasContent.appendChild(shipCard);
+            renderCrew(ship);
+        }
+
+        function startDragShip(e) {
+            if (e.target.closest('button, input, select')) return;
+            
+            const shipCard = e.currentTarget;
+            const shipId = shipCard.dataset.shipId;
+            const ship = ships.find(s => s.id === shipId);
+            
+            // Blocca il drag se la nave è locked
+            if (ship && ship.locked) {
+                return;
+            }
+            
+            const rect = shipCard.getBoundingClientRect();
+            const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+            
+            draggedElement = {
+                element: shipCard,
+                offsetX: (e.clientX - rect.left) / canvasZoom,  // dividi per lo zoom
+                offsetY: (e.clientY - rect.top) / canvasZoom,   // dividi per lo zoom
+                isShip: true
+            };
+
+            document.addEventListener('mousemove', dragShip);
+            document.addEventListener('mouseup', stopDragShip);
+            shipCard.style.zIndex = '1001';
+            e.preventDefault();
+        }
+
+        function dragShip(e) {
+            if (!draggedElement || !draggedElement.isShip) return;
+            
+            const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+            const canvasContent = document.getElementById('canvasContent');
+            const maxWidth = 4000 - 400;
+            const maxHeight = 3000 - 600;
+            
+            // Dividi per lo zoom per ottenere le coordinate corrette
+            let x = (e.clientX - canvasRect.left) / canvasZoom - draggedElement.offsetX - canvasOffset.x / canvasZoom;
+            let y = (e.clientY - canvasRect.top) / canvasZoom - draggedElement.offsetY - canvasOffset.y / canvasZoom;
+            
+            // Limita le coordinate ai bordi della griglia
+            x = Math.max(0, Math.min(maxWidth, x));
+            y = Math.max(0, Math.min(maxHeight, y));
+            
+            draggedElement.element.style.left = x + 'px';
+            draggedElement.element.style.top = y + 'px';
+        }
+
+        function stopDragShip(e) {
+            if (!draggedElement || !draggedElement.isShip) return;
+            
+            const shipId = draggedElement.element.dataset.shipId;
+            const ship = ships.find(s => s.id === shipId);
+            
+            if (ship) {
+                ship.x = parseInt(draggedElement.element.style.left);
+                ship.y = parseInt(draggedElement.element.style.top);
+                saveToStorage();
+            }
+            
+            draggedElement.element.style.zIndex = '';
+            draggedElement = null;
+            
+            document.removeEventListener('mousemove', dragShip);
+            document.removeEventListener('mouseup', stopDragShip);
+        }
+
+        function toggleLockShip(shipId) {
+            const ship = ships.find(s => s.id === shipId);
+            if (!ship) return;
+            
+            // Toggle locked state
+            ship.locked = !ship.locked;
+            
+            // Aggiorna il pulsante
+            const shipCard = document.querySelector(`[data-ship-id="${shipId}"]`);
+            const lockBtn = shipCard.querySelector('.lock-ship');
+            const lockIcon = lockBtn.querySelector('i');
+            
+            if (ship.locked) {
+                lockBtn.classList.add('locked');
+                lockIcon.className = 'fa-solid fa-lock';
+                lockBtn.title = 'Sblocca nave';
+                shipCard.style.cursor = 'default';
+            } else {
+                lockBtn.classList.remove('locked');
+                lockIcon.className = 'fa-solid fa-lock-open';
+                lockBtn.title = 'Blocca nave';
+                shipCard.style.cursor = 'move';
+            }
+            
+            saveToStorage();
+        }
+
+        function renderCrew(ship) {
+            const crewContainer = document.getElementById(`crew-${ship.id}`);
+            crewContainer.innerHTML = '';
+
+            // Ottieni il template della nave per i ruoli disponibili
+            const template = shipTemplates.find(t => t.id === ship.templateId);
+            const availableRoleIds = template && template.roles ? template.roles.split(',') : [];
+            const availableRoles = roles.filter(role => availableRoleIds.includes(role.id));
+
+            ship.crew.forEach((member, index) => {
+                const memberElement = document.createElement('div');
+                memberElement.className = 'crew-member';
+                
+                memberElement.innerHTML = `
+                    <input type="text" class="member-name" placeholder="nickname" value="${member.name}" 
+                        onchange="updateMemberName('${ship.id}', ${index}, this.value)">
+                    <select class="role-select" onchange="updateMemberRole('${ship.id}', ${index}, this.value)">
+                        ${availableRoles.map(role => 
+                            `<option value="${role.id}" ${role.id === member.roleId ? 'selected' : ''}>${role.name}</option>`
+                        ).join('')}
+                    </select>
+                    <button class="delete-member" onclick="deleteCrewMember('${ship.id}', ${index})">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                `;
+                
+                crewContainer.appendChild(memberElement);
+            });
+        }
+
+        function addCrewMember(shipId) {
+            const ship = ships.find(s => s.id === shipId);
+            if (!ship) return;
+
+            // Ottieni il template della nave per i ruoli disponibili
+            const template = shipTemplates.find(t => t.id === ship.templateId);
+            const availableRoleIds = template && template.roles ? template.roles.split(',') : [];
+            const defaultRoleId = availableRoleIds.length > 0 ? availableRoleIds[0] : '1';
+
+            ship.crew.push({
+                name: '',
+                roleId: defaultRoleId
+            });
+
+            renderCrew(ship);
+            saveToStorage();
+        }
+
+        function updateMemberName(shipId, memberIndex, newName) {
+            const ship = ships.find(s => s.id === shipId);
+            if (ship && ship.crew[memberIndex]) {
+                ship.crew[memberIndex].name = newName;
+                saveToStorage();
+            }
+        }
+
+        function updateMemberRole(shipId, memberIndex, newRoleId) {
+            const ship = ships.find(s => s.id === shipId);
+            if (ship && ship.crew[memberIndex]) {
+                ship.crew[memberIndex].roleId = newRoleId;
+                renderCrew(ship);
+                saveToStorage();
+            }
+        }
+
+        function deleteCrewMember(shipId, memberIndex) {
+            const ship = ships.find(s => s.id === shipId);
+            if (ship) {
+                ship.crew.splice(memberIndex, 1);
+                renderCrew(ship);
+                saveToStorage();
+            }
+        }
+
+        function deleteShip(shipId) {
+            ships = ships.filter(s => s.id !== shipId);
+            const shipElement = document.querySelector(`[data-ship-id="${shipId}"]`);
+            if (shipElement) {
+                shipElement.remove();
+            }
+            saveToStorage();
+        }
+
+        // Funzioni di salvataggio e caricamento
+        function saveToStorage() {
+            const data = { 
+                ships: ships,
+                textBoxes: window.textBoxes || [],
+                eventCards: window.eventCards || [],
+                canvasOffset: canvasOffset,
+                canvasZoom: canvasZoom
+            };
+            window.currentFleetData = data;
+        }
+
+        // Nella funzione loadFromStorage (se la riattivi), aggiungi:
+        // canvasZoom = parsed.canvasZoom || 1;
+
+        function loadFromStorage() {
+            // In un ambiente reale, useresti: const data = localStorage.getItem('shipFleetData');
+            // if (data) {
+            //     const parsed = JSON.parse(data);
+            //     ships = parsed.ships || [];
+            //     canvasOffset = parsed.canvasOffset || { x: 0, y: 0 };
+            //     const canvasContent = document.getElementById('canvasContent');
+            //     canvasContent.style.transform = `translate(${canvasOffset.x}px, ${canvasOffset.y}px)`;
+            //     ships.forEach(ship => renderShip(ship));
+            // }
+        }
+
+        function exportData() {
+            const data = { 
+                ships: ships,
+                textBoxes: window.textBoxes || [],
+                eventCards: window.eventCards || [],
+                canvasOffset: canvasOffset,
+                timestamp: new Date().toISOString(),
+                version: '1.0'
+            };
+
+            // AGGIUNGI QUESTA RIGA per vedere cosa viene esportato
+            console.log('Dati esportati:', data);
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `configurazione-flotta-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('Configurazione esportata con successo!', 'success');
+            closeModal();
+        }
+
+        function showFileNameDialog(callback) {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.style.display = 'flex';
+            overlay.style.opacity = '1';
+            
+            const dialog = document.createElement('div');
+            dialog.className = 'input-dialog';
+            
+            const defaultName = `configurazione-flotta-${new Date().toISOString().split('T')[0]}`;
+            
+            dialog.innerHTML = `
+                <h3>Nome del file</h3>
+                <input type="text" id="fileNameInput" value="${defaultName}" placeholder="Inserisci il nome del file">
+                <div class="input-dialog-buttons">
+                    <button class="cancel" onclick="closeFileNameDialog()">Annulla</button>
+                    <button onclick="confirmFileName()">Scarica</button>
+                </div>
+            `;
+            
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+            
+            // Focus sull'input e seleziona tutto il testo
+            setTimeout(() => {
+                const input = document.getElementById('fileNameInput');
+                input.focus();
+                input.select();
+            }, 100);
+            
+            // Store callback per uso globale
+            window.fileNameCallback = callback;
+            
+            // Gestione Enter key
+            document.getElementById('fileNameInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    confirmFileName();
+                }
+            });
+        }
+
+        function confirmFileName() {
+            const fileName = document.getElementById('fileNameInput').value.trim();
+            if (!fileName) {
+                showNotification('Inserisci un nome per il file', 'error');
+                return;
+            }
+            
+            closeFileNameDialog();
+            if (window.fileNameCallback) {
+                window.fileNameCallback(fileName);
+                delete window.fileNameCallback;
+            }
+        }
+
+        function closeFileNameDialog() {
+            const overlay = document.querySelector('.modal-overlay:last-of-type');
+            if (overlay) {
+                overlay.remove();
+            }
+            delete window.fileNameCallback;
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    // Debug: vedi cosa contiene il file importato
+                    console.log('Dati importati:', data);
+                    console.log('TextBoxes trovate:', data.textBoxes);
+                    console.log('EventCards trovate:', data.eventCards);
+                    
+                    if (data.ships && Array.isArray(data.ships)) {
+                        // Rimuovi tutto l'esistente
+                        document.querySelectorAll('.ship-card').forEach(el => el.remove());
+                        document.querySelectorAll('.text-box').forEach(el => el.remove());
+                        document.querySelectorAll('.event-card').forEach(el => el.remove());
+                        
+                        // Carica i nuovi dati
+                        ships = data.ships;
+                        window.textBoxes = data.textBoxes || [];
+                        window.eventCards = data.eventCards || [];
+                        canvasOffset = data.canvasOffset || { x: 0, y: 0 };
+                        canvasZoom = data.canvasZoom || 1;
+                        
+                        console.log('Array caricati - TextBoxes:', window.textBoxes.length, 'EventCards:', window.eventCards.length);
+                        
+                        // Ripristina la vista del canvas
+                        applyZoom();
+                        
+                        // Renderizza tutto
+                        ships.forEach(ship => renderShip(ship));
+                        
+                        // Renderizza text-boxes
+                        if (window.textBoxes && Array.isArray(window.textBoxes)) {
+                            console.log('Rendering', window.textBoxes.length, 'text boxes...');
+                            window.textBoxes.forEach(textBox => {
+                                console.log('Rendering textBox:', textBox);
+                                renderTextBox(textBox);
+                            });
+                        }
+                        
+                        // Renderizza event-cards
+                        if (window.eventCards && Array.isArray(window.eventCards)) {
+                            console.log('Rendering', window.eventCards.length, 'event cards...');
+                            window.eventCards.forEach(eventCard => {
+                                console.log('Rendering eventCard:', eventCard);
+                                renderEventCard(eventCard);
+                            });
+                        }
+                        
+                        showNotification('Configurazione importata con successo!', 'success');
+                        closeModal();
+                    } else {
+                        showNotification('Formato file non valido', 'error');
+                    }
+                } catch (error) {
+                    console.error('Errore importazione:', error);
+                    showNotification('Errore nell\'importazione del file', 'error');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // Funzione per mostrare notifiche
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: ${type === 'success' ? '#4caf50' : type === 'error' ? '#f44336' : '#ff8c00'};
+                color: white;
+                padding: 12px 24px;
+                border-radius: 6px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                z-index: 10000;
+                font-weight: 500;
+                animation: slideDown 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            
+            // Aggiungi l'animazione CSS
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes slideDown {
+                    from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+                    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideDown 0.3s ease-out reverse';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                    if (style.parentNode) {
+                        style.parentNode.removeChild(style);
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        // tasti opzionali discord e musica
+        function openDiscord() {
+            window.open("https://discord.gg/DsGefnpJAz", "_blank");
+        }
+
+        let music = null;
+        let isMusicPlaying = false;
+        let currentTrackIndex = -1;
+        let shuffledTracks = [];
+
+        function shuffleTracks() {
+            shuffledTracks = [...musicTracks];
+            for (let i = shuffledTracks.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffledTracks[i], shuffledTracks[j]] = [shuffledTracks[j], shuffledTracks[i]];
+            }
+        }
+
+        function playNextTrack() {
+            if (shuffledTracks.length === 0) {
+                shuffleTracks();
+                currentTrackIndex = 0;
+            } else {
+                currentTrackIndex = (currentTrackIndex + 1) % shuffledTracks.length;
+            }
+            
+            if (music) {
+                music.pause();
+                music = null;
+            }
+            
+            music = new Audio(shuffledTracks[currentTrackIndex]);
+            music.volume = 0.2;
+            
+            music.addEventListener('ended', function() {
+                if (isMusicPlaying) {
+                    playNextTrack();
+                }
+            });
+            
+            music.play();
+        }
+
+        function toggleMusic() {
+            const btn = document.getElementById('musicBtn');
+            
+            if (isMusicPlaying) {
+                if (music) {
+                    music.pause();
+                    music = null;
+                }
+                btn.classList.remove("music-active");
+                isMusicPlaying = false;
+            } else {
+                isMusicPlaying = true;
+                btn.classList.add("music-active");
+                
+                if (shuffledTracks.length === 0) {
+                    shuffleTracks();
+                    currentTrackIndex = -1;
+                }
+                
+                playNextTrack();
+            }
+        }
+
+        let infoAudio = null;
+        let isInfoPlaying = false;
+
+        function toggleInfo() {
+            const btn = document.getElementById('infoBtn');
+            
+            if (!infoAudio) {
+                infoAudio = new Audio("assets/music/tutorial.mp3");
+                infoAudio.loop = false;  // NON ripete
+                infoAudio.volume = 0.7;
+                
+                // Quando finisce, resetta tutto
+                infoAudio.addEventListener('ended', function() {
+                    btn.classList.remove("info-btn-active");
+                    isInfoPlaying = false;
+                    infoAudio = null;
+                });
+            }
+
+            if (isInfoPlaying) {
+                infoAudio.pause();
+                infoAudio = null;
+                btn.classList.remove("info-btn-active");
+                isInfoPlaying = false;
+            } else {
+                infoAudio.play();
+                btn.classList.add("info-btn-active");
+                isInfoPlaying = true;
+            }
+        }
+
+        function toggleCrewSearch() {
+            const panel = document.getElementById('crewSearchPanel');
+            const input = document.getElementById('crewSearchInput');
+            
+            if (panel.classList.contains('visible')) {
+                panel.classList.remove('visible');
+                input.value = '';
+                document.getElementById('crewSearchResults').innerHTML = '';
+            } else {
+                panel.classList.add('visible');
+                setTimeout(() => input.focus(), 100);
+            }
+        }
+
+        function searchCrew() {
+            const searchTerm = document.getElementById('crewSearchInput').value.toLowerCase().trim();
+            const resultsContainer = document.getElementById('crewSearchResults');
+            
+            if (!searchTerm) {
+                resultsContainer.innerHTML = '';
+                return;
+            }
+            
+            const results = [];
+            
+            ships.forEach(ship => {
+                const template = shipTemplates.find(t => t.id === ship.templateId);
+                ship.crew.forEach(member => {
+                    if (member.name.toLowerCase().includes(searchTerm)) {
+                        const role = roles.find(r => r.id === member.roleId);
+                        results.push({
+                            memberName: member.name,
+                            shipName: template ? template.name : 'Unknown Ship',
+                            roleName: role ? role.name : 'Unknown Role',
+                            shipId: ship.id
+                        });
+                    }
+                });
+            });
+            
+            if (results.length === 0) {
+                resultsContainer.innerHTML = '<div class="crew-search-no-results"><i class="fas fa-user-slash" style="font-size: 32px; margin-bottom: 10px; display: block; opacity: 0.5;"></i>Nessun membro trovato</div>';
+            } else {
+                resultsContainer.innerHTML = results.map(result => `
+                    <div class="crew-search-result" onclick="highlightShip('${result.shipId}')">
+                        <div class="crew-search-result-ship">
+                            <i class="fas fa-rocket"></i> ${result.memberName}
+                        </div>
+                        <div class="crew-search-result-role">
+                            ${result.shipName} - ${result.roleName}
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function highlightShip(shipId) {
+            const shipCard = document.querySelector(`[data-ship-id="${shipId}"]`);
+            if (shipCard) {
+                // Chiudi il pannello di ricerca
+                toggleCrewSearch();
+                
+                // Calcola la posizione della nave
+                const shipX = parseInt(shipCard.style.left);
+                const shipY = parseInt(shipCard.style.top);
+                
+                // Centra la vista sulla nave
+                const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+                canvasOffset.x = canvasRect.width / 2 - (shipX * canvasZoom) - 200;
+                canvasOffset.y = canvasRect.height / 2 - (shipY * canvasZoom) - 300;
+                applyZoom();
+                
+                // Effetto di highlight
+                shipCard.style.animation = 'none';
+                setTimeout(() => {
+                    shipCard.style.animation = 'highlightPulse 1.5s ease-in-out 3';
+                }, 10);
+            }
+        }
+
+        function addTextBox(x = 100, y = 100, text = '', locked = false) {
+            const textBox = {
+                id: `text-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                x: x,
+                y: y,
+                text: text,
+                locked: locked
+            };
+            
+            if (!window.textBoxes) {
+                window.textBoxes = [];
+            }
+            
+            window.textBoxes.push(textBox);
+            renderTextBox(textBox);
+            saveToStorage();
+            closeModal();
+        }
+
+        function renderTextBox(textBox) {
+            const canvasContent = document.getElementById('canvasContent');
+            
+            const textBoxElement = document.createElement('div');
+            textBoxElement.className = 'text-box' + (textBox.locked ? ' locked' : '');
+            textBoxElement.style.left = textBox.x + 'px';
+            textBoxElement.style.top = textBox.y + 'px';
+            textBoxElement.dataset.textBoxId = textBox.id;
+            
+            textBoxElement.innerHTML = `
+                <input type="text" placeholder="Inserisci testo..." value="${textBox.text}" 
+                    oninput="updateTextBox('${textBox.id}', this.value)">
+                <button class="lock-text-box ${textBox.locked ? 'locked' : ''}" onclick="toggleLockTextBox('${textBox.id}')" title="${textBox.locked ? 'Sblocca nota' : 'Blocca nota'}">
+                    <i class="fa-solid fa-lock${textBox.locked ? '' : '-open'}"></i>
+                </button>
+                <button class="delete-text-box" onclick="deleteTextBox('${textBox.id}')">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            `;
+            
+            textBoxElement.addEventListener('mousedown', startDragTextBox);
+            canvasContent.appendChild(textBoxElement);
+        }
+
+        function startDragTextBox(e) {
+            if (e.target.tagName === 'INPUT' || e.target.closest('button')) return;
+            
+            const textBoxElement = e.currentTarget;
+            const textBoxId = textBoxElement.dataset.textBoxId;
+            const textBox = window.textBoxes.find(tb => tb.id === textBoxId);
+            
+            // Blocca il drag se la text box è locked
+            if (textBox && textBox.locked) {
+                return;
+            }
+            
+            const rect = textBoxElement.getBoundingClientRect();
+            
+            draggedElement = {
+                element: textBoxElement,
+                offsetX: (e.clientX - rect.left) / canvasZoom,
+                offsetY: (e.clientY - rect.top) / canvasZoom,
+                isTextBox: true
+            };
+            
+            document.addEventListener('mousemove', dragTextBox);
+            document.addEventListener('mouseup', stopDragTextBox);
+            textBoxElement.style.zIndex = '1001';
+            e.preventDefault();
+        }
+
+        function dragTextBox(e) {
+            if (!draggedElement || !draggedElement.isTextBox) return;
+            
+            const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+            
+            let x = (e.clientX - canvasRect.left) / canvasZoom - draggedElement.offsetX - canvasOffset.x / canvasZoom;
+            let y = (e.clientY - canvasRect.top) / canvasZoom - draggedElement.offsetY - canvasOffset.y / canvasZoom;
+            
+            x = Math.max(0, Math.min(7600, x));
+            y = Math.max(0, Math.min(5800, y));
+            
+            draggedElement.element.style.left = x + 'px';
+            draggedElement.element.style.top = y + 'px';
+        }
+
+        function stopDragTextBox(e) {
+            if (!draggedElement || !draggedElement.isTextBox) return;
+            
+            const textBoxId = draggedElement.element.dataset.textBoxId;
+            const textBox = window.textBoxes.find(tb => tb.id === textBoxId);
+            
+            if (textBox) {
+                textBox.x = parseInt(draggedElement.element.style.left);
+                textBox.y = parseInt(draggedElement.element.style.top);
+                saveToStorage();
+            }
+            
+            draggedElement.element.style.zIndex = '';
+            draggedElement = null;
+            
+            document.removeEventListener('mousemove', dragTextBox);
+            document.removeEventListener('mouseup', stopDragTextBox);
+        }
+
+        function updateTextBox(textBoxId, newText) {
+            const textBox = window.textBoxes.find(tb => tb.id === textBoxId);
+            if (textBox) {
+                textBox.text = newText;
+                saveToStorage();
+            }
+        }
+
+        function deleteTextBox(textBoxId) {
+            window.textBoxes = window.textBoxes.filter(tb => tb.id !== textBoxId);
+            const textBoxElement = document.querySelector(`[data-text-box-id="${textBoxId}"]`);
+            if (textBoxElement) {
+                textBoxElement.remove();
+            }
+            saveToStorage();
+        }
+
+        function toggleLockTextBox(textBoxId) {
+            const textBox = window.textBoxes.find(tb => tb.id === textBoxId);
+            if (!textBox) return;
+            
+            // Toggle locked state
+            textBox.locked = !textBox.locked;
+            
+            // Aggiorna il pulsante
+            const textBoxElement = document.querySelector(`[data-text-box-id="${textBoxId}"]`);
+            const lockBtn = textBoxElement.querySelector('.lock-text-box');
+            const lockIcon = lockBtn.querySelector('i');
+            
+            if (textBox.locked) {
+                lockBtn.classList.add('locked');
+                lockIcon.className = 'fa-solid fa-lock';
+                lockBtn.title = 'Sblocca nota';
+                textBoxElement.classList.add('locked');
+            } else {
+                lockBtn.classList.remove('locked');
+                lockIcon.className = 'fa-solid fa-lock-open';
+                lockBtn.title = 'Blocca nota';
+                textBoxElement.classList.remove('locked');
+            }
+            
+            saveToStorage();
+        }
+
+        function addEventCard(x = 100, y = 100, title = '', description = '', image = '', locked = false) {
+            const eventCard = {
+                id: `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                x: x,
+                y: y,
+                title: title,
+                description: description,
+                image: image,
+                locked: locked
+            };
+            
+            if (!window.eventCards) {
+                window.eventCards = [];
+            }
+            
+            window.eventCards.push(eventCard);
+            renderEventCard(eventCard);
+            saveToStorage();
+            closeModal();
+        }
+
+        function renderEventCard(eventCard) {
+            const canvasContent = document.getElementById('canvasContent');
+            
+            const eventElement = document.createElement('div');
+            eventElement.className = 'event-card' + (eventCard.locked ? ' locked' : '');
+            eventElement.style.left = eventCard.x + 'px';
+            eventElement.style.top = eventCard.y + 'px';
+            eventElement.dataset.eventId = eventCard.id;
+            
+            const imageHtml = eventCard.image 
+                ? `<img class="event-image" src="${eventCard.image}" alt="Event" onclick="changeEventImage('${eventCard.id}')" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
+                : '';
+            
+            const placeholderHtml = eventCard.image 
+                ? `<div class="event-image-placeholder" style="display:none;" onclick="changeEventImage('${eventCard.id}')">Clicca per caricare<br>un'immagine</div>`
+                : `<div class="event-image-placeholder" onclick="changeEventImage('${eventCard.id}')">Clicca per caricare<br>un'immagine</div>`;
+            
+            eventElement.innerHTML = `
+                <div class="event-card-header">
+                    ${imageHtml}
+                    ${placeholderHtml}
+                    <div class="event-title-row">
+                        <input type="text" class="event-title-input" placeholder="Titolo evento..." value="${eventCard.title}" 
+                            oninput="updateEventTitle('${eventCard.id}', this.value)">
+                        <div class="event-controls">
+                            <button class="lock-event ${eventCard.locked ? 'locked' : ''}" onclick="toggleLockEvent('${eventCard.id}')" title="${eventCard.locked ? 'Sblocca evento' : 'Blocca evento'}">
+                                <i class="fa-solid fa-lock${eventCard.locked ? '' : '-open'}"></i>
+                            </button>
+                            <button class="delete-event" onclick="deleteEventCard('${eventCard.id}')">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <textarea class="event-description" placeholder="Descrizione evento..." oninput="autoResizeTextarea(this); updateEventDescription('${eventCard.id}', this.value)">${eventCard.description}</textarea>
+                <input type="file" id="event-image-${eventCard.id}" class="file-input" accept="image/*" onchange="handleEventImageUpload('${eventCard.id}', event)">
+            `;
+            
+            eventElement.addEventListener('mousedown', startDragEvent);
+            canvasContent.appendChild(eventElement);
+            
+            // Imposta l'altezza iniziale della textarea se c'è del contenuto
+            const textarea = eventElement.querySelector('.event-description');
+            if (textarea && eventCard.description) {
+                setTimeout(() => autoResizeTextarea(textarea), 0);
+            }
+        }
+
+        function changeEventImage(eventId) {
+            document.getElementById(`event-image-${eventId}`).click();
+        }
+
+        function handleEventImageUpload(eventId, event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const eventCard = window.eventCards.find(ec => ec.id === eventId);
+                if (eventCard) {
+                    eventCard.image = e.target.result;
+                    saveToStorage();
+                    
+                    // Aggiorna l'immagine nell'elemento
+                    const eventElement = document.querySelector(`[data-event-id="${eventId}"]`);
+                    const imgElement = eventElement.querySelector('.event-image');
+                    const placeholderElement = eventElement.querySelector('.event-image-placeholder');
+                    
+                    if (imgElement) {
+                        imgElement.src = e.target.result;
+                        imgElement.style.display = 'block';
+                        placeholderElement.style.display = 'none';
+                    } else {
+                        // Crea l'immagine se non esisteva
+                        const newImg = document.createElement('img');
+                        newImg.className = 'event-image';
+                        newImg.src = e.target.result;
+                        newImg.onclick = () => changeEventImage(eventId);
+                        placeholderElement.parentNode.insertBefore(newImg, placeholderElement);
+                        placeholderElement.style.display = 'none';
+                    }
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function startDragEvent(e) {
+            if (e.target.closest('button, input, textarea, .event-image, .event-image-placeholder')) return;
+            
+            const eventElement = e.currentTarget;
+            const eventId = eventElement.dataset.eventId;
+            const eventCard = window.eventCards.find(ec => ec.id === eventId);
+            
+            if (eventCard && eventCard.locked) {
+                return;
+            }
+            
+            const rect = eventElement.getBoundingClientRect();
+            
+            draggedElement = {
+                element: eventElement,
+                offsetX: (e.clientX - rect.left) / canvasZoom,
+                offsetY: (e.clientY - rect.top) / canvasZoom,
+                isEvent: true
+            };
+            
+            document.addEventListener('mousemove', dragEvent);
+            document.addEventListener('mouseup', stopDragEvent);
+            eventElement.style.zIndex = '1001';
+            e.preventDefault();
+        }
+
+        function dragEvent(e) {
+            if (!draggedElement || !draggedElement.isEvent) return;
+            
+            const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+            
+            let x = (e.clientX - canvasRect.left) / canvasZoom - draggedElement.offsetX - canvasOffset.x / canvasZoom;
+            let y = (e.clientY - canvasRect.top) / canvasZoom - draggedElement.offsetY - canvasOffset.y / canvasZoom;
+            
+            x = Math.max(0, Math.min(7600, x));
+            y = Math.max(0, Math.min(5600, y));
+            
+            draggedElement.element.style.left = x + 'px';
+            draggedElement.element.style.top = y + 'px';
+        }
+
+        function stopDragEvent(e) {
+            if (!draggedElement || !draggedElement.isEvent) return;
+            
+            const eventId = draggedElement.element.dataset.eventId;
+            const eventCard = window.eventCards.find(ec => ec.id === eventId);
+            
+            if (eventCard) {
+                eventCard.x = parseInt(draggedElement.element.style.left);
+                eventCard.y = parseInt(draggedElement.element.style.top);
+                saveToStorage();
+            }
+            
+            draggedElement.element.style.zIndex = '';
+            draggedElement = null;
+            
+            document.removeEventListener('mousemove', dragEvent);
+            document.removeEventListener('mouseup', stopDragEvent);
+        }
+
+        function updateEventTitle(eventId, newTitle) {
+            const eventCard = window.eventCards.find(ec => ec.id === eventId);
+            if (eventCard) {
+                eventCard.title = newTitle;
+                saveToStorage();
+            }
+        }
+
+        function updateEventDescription(eventId, newDescription) {
+            const eventCard = window.eventCards.find(ec => ec.id === eventId);
+            if (eventCard) {
+                eventCard.description = newDescription;
+                saveToStorage();
+            }
+        }
+
+        function toggleLockEvent(eventId) {
+            const eventCard = window.eventCards.find(ec => ec.id === eventId);
+            if (!eventCard) return;
+            
+            eventCard.locked = !eventCard.locked;
+            
+            const eventElement = document.querySelector(`[data-event-id="${eventId}"]`);
+            const lockBtn = eventElement.querySelector('.lock-event');
+            const lockIcon = lockBtn.querySelector('i');
+            
+            if (eventCard.locked) {
+                lockBtn.classList.add('locked');
+                lockIcon.className = 'fa-solid fa-lock';
+                lockBtn.title = 'Sblocca evento';
+                eventElement.classList.add('locked');
+            } else {
+                lockBtn.classList.remove('locked');
+                lockIcon.className = 'fa-solid fa-lock-open';
+                lockBtn.title = 'Blocca evento';
+                eventElement.classList.remove('locked');
+            }
+            
+            saveToStorage();
+        }
+
+        function deleteEventCard(eventId) {
+            window.eventCards = window.eventCards.filter(ec => ec.id !== eventId);
+            const eventElement = document.querySelector(`[data-event-id="${eventId}"]`);
+            if (eventElement) {
+                eventElement.remove();
+            }
+            saveToStorage();
+        }
+
+        function autoResizeTextarea(textarea) {
+            // Reset dell'altezza per calcolare quella corretta
+            textarea.style.height = 'auto';
+            // Imposta l'altezza in base allo scrollHeight
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+    </script>
+</body>
+</html>
